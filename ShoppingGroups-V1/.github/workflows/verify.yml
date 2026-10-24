@@ -1,0 +1,31 @@
+name: Verify uploaded project
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: ShoppingGroups-V1
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ShoppingGroups-V1/web/package-lock.json
+      - run: npm ci --prefix web --ignore-scripts
+      - run: npm test --prefix web
+      - run: npm run test:config
+      - run: npm run build --prefix web
+      - run: dotnet run --project tests/ShoppingGroups.Domain.Tests -c Release
+      - run: dotnet build src/ShoppingGroups.Api -c Release
+      - run: docker compose -f compose.tests.yaml up --build --abort-on-container-exit --exit-code-from tests
+      - if: failure()
+        run: docker compose -f compose.tests.yaml logs --no-color api db tests
+      - if: always()
+        run: docker compose -f compose.tests.yaml down --volumes
