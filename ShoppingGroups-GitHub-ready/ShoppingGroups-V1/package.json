@@ -1,0 +1,16 @@
+{
+  "name": "shopping-groups",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build --prefix web",
+    "build:api": "dotnet build src/ShoppingGroups.Api -c Release",
+    "dev:api": "node scripts/run-api.mjs",
+    "dev:web": "npm run dev --prefix web",
+    "test:config": "node --test scripts/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

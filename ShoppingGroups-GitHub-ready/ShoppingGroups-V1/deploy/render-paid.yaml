@@ -1,0 +1,52 @@
+# Deployment template only. These paid resources have NOT been provisioned.
+# Review Render's displayed charges before applying the Blueprint.
+services:
+  - type: web
+    name: shopping-groups
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: 'off'
+    healthCheckPath: /health/ready
+    disk:
+      name: identity-keys
+      mountPath: /app/keys
+      sizeGB: 1
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_HTTP_PORTS
+        value: "8080"
+      - key: PublicUrl
+        fromService:
+          name: shopping-groups
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      # Fill with Npgsql syntax using the database's INTERNAL host and credentials.
+      # A Render postgresql:// URL cannot be used directly by the existing API.
+      - key: ConnectionStrings__Database
+        sync: false
+      - key: DataProtection__Path
+        value: /app/keys
+      - key: Bootstrap__AdminEmail
+        sync: false
+      - key: Bootstrap__AdminPassword
+        sync: false
+      - key: Smtp__Host
+        sync: false
+      - key: Smtp__Port
+        value: "587"
+      - key: Smtp__From
+        sync: false
+      - key: Smtp__Username
+        sync: false
+      - key: Smtp__Password
+        sync: false
+      - key: Smtp__EnableSsl
+        value: "true"
+
+# Create PostgreSQL first; its separate template is deploy/render-postgres.yaml.
+# Keeping the resources separate lets you supply the real Npgsql secret before
+# the web-service Blueprint's first deployment, without a failed bootstrap.

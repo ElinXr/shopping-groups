@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ShoppingGroups.Domain/ShoppingGroups.Domain.csproj" />
+    <Project Path="src/ShoppingGroups.Api/ShoppingGroups.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ShoppingGroups.Domain.Tests/ShoppingGroups.Domain.Tests.csproj" />
+    <Project Path="tests/ShoppingGroups.Api.Tests/ShoppingGroups.Api.Tests.csproj" />
+  </Folder>
+</Solution>
