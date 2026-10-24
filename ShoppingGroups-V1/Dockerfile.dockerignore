@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/bin
+**/obj
+**/*.tsbuildinfo
+.tools
+.git
+**/.env
+**/.env.*
+**/.neon
+data
+artifacts
+backups
+test-results
+playwright-report
