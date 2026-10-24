@@ -1,5 +1,7 @@
 # Public deployment
 
+**Current requested option (23 October): zero budget, no fixed trial end.** Use [FREE-HOSTING.md](FREE-HOSTING.md) and the current root `render.yaml` for Render Free + Neon Free. The paid Render example below is retained only as an optional alternative in `deploy/render-paid.yaml`; it is not the selected deployment.
+
 ## Current status and missing access
 
 No deployment has succeeded or been claimed. This workspace initially had no files, repository remote, hosting manifest or provider credentials. Only environment variable **names** were inspected for provider access; secret values were not printed. Azure/AWS/Fly/Railway/Render CLIs were not available. The connected Sites service runs Cloudflare Workers and cannot execute this ASP.NET Core/PostgreSQL backend. A Railway integration was discovered but was not installed/connected during this run.
@@ -37,12 +39,12 @@ After the administrator has been created, remove `ADMIN_PASSWORD` and `ADMIN_EMA
 
 ## Render alternative
 
-The root `render.yaml` describes one Docker web service in Frankfurt, a 1 GB disk for Identity keys and the existing readiness endpoint. `deploy/render-postgres.yaml` separately describes PostgreSQL 17 on the private network. These use **paid** service/database plans and a persistent disk. Review the charges displayed by Render before applying; no purchase or provisioning has been performed. Automatic redeployment is disabled so a later source push does not trigger an unattended release.
+The optional `deploy/render-paid.yaml` describes one Docker web service in Frankfurt, a 1 GB disk for Identity keys and the existing readiness endpoint. `deploy/render-postgres.yaml` separately describes PostgreSQL 17 on the private network. These use **paid** service/database plans and a persistent disk. They are not selected for the user's zero-budget deployment. Review charges before applying either paid example; no purchase or provisioning has been performed.
 
 1. Push the project to a repository that your Render workspace can access. No repository remote is connected here yet.
 2. Create the database first in Render's dashboard using `deploy/render-postgres.yaml` as the settings reference (name `shopping-groups-db`, Frankfurt, PostgreSQL 17, private access only). The service deliberately asks for an explicit connection secret rather than assuming Render's URL is accepted by Npgsql.
 3. Construct `ConnectionStrings__Database` from the database's internal host, database, user and password using Npgsql syntax: `Host=INTERNAL_HOST;Port=5432;Database=shopping;Username=shopping;Password=SECRET`. Use a connection-string builder or quote/escape special characters in provider-generated passwords correctly. Keep this value only in Render's secret environment settings.
-4. Create a web-service Blueprint from the root `render.yaml`. It does not create another database. Supply the connection string from step 3, bootstrap administrator and SMTP settings requested by the Blueprint. Use the SMTP provider's actual port/TLS settings if they differ from 587/STARTTLS.
+4. For this paid alternative only, create a web-service Blueprint from `deploy/render-paid.yaml`. It does not create another database. Supply the connection string from step 3, bootstrap administrator and SMTP settings requested by the Blueprint. Use the SMTP provider's actual port/TLS settings if they differ from 587/STARTTLS.
 5. Confirm `/app/keys` is writable by the Docker image's `app` user (UID 1654). The disk must retain these keys across releases. Check this in the hosted environment; local Docker cannot verify it here.
 6. `PublicUrl` references Render's own generated HTTPS URL. For a custom domain, replace it with the verified HTTPS origin before sending invitations. Run the complete release gate below and then perform the first manual deployment.
 
@@ -65,7 +67,7 @@ Provider references: [Blueprint fields](https://render.com/docs/blueprint-spec),
 | `Smtp__Host`, `Smtp__Port`, `Smtp__From` | Outbound mail server and verified sender |
 | `Smtp__Username`, `Smtp__Password`, `Smtp__EnableSsl` | Mail provider credentials and STARTTLS flag; port 587 with `true` for typical submission |
 
-Do not paste a `postgres://` URL directly into `ConnectionStrings__Database`: the provider expects Npgsql connection-string syntax. Keep one API replica. If the platform requires a dynamic `PORT`, set the service’s public target to 8080 or configure `ASPNETCORE_HTTP_PORTS` to that numeric value. ASP.NET does not automatically interpret a provider’s unrelated `PORT` variable.
+You can now use a PostgreSQL URL in `DATABASE_URL` (the adapter converts it to Npgsql syntax), or supply a native `ConnectionStrings__Database`, which takes precedence. Keep one API replica. If the platform requires a dynamic `PORT`, set the service's public target to 8080 or configure `ASPNETCORE_HTTP_PORTS` to that numeric value. ASP.NET does not automatically interpret a provider's unrelated `PORT` variable.
 
 No source was pushed to a remote or deployed to Railway in this run. The integration must first be connected and the target project/service identified before those actions can be performed.
 

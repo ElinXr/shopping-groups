@@ -18,6 +18,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Testing
       ConnectionStrings__Database: Host=db;Database=shopping_tests;Username=shopping;Password=isolated-test-password
       PublicUrl: http://api:8080
+      DataProtection__Storage: Database
       Smtp__Host: mailpit
       Smtp__Port: 1025
       Bootstrap__AdminEmail: admin@tests.example
@@ -27,6 +28,18 @@ services:
         condition: service_healthy
   mailpit:
     image: axllent/mailpit:v1.27
+  api-key-check:
+    build: .
+    environment:
+      ASPNETCORE_ENVIRONMENT: Testing
+      ConnectionStrings__Database: Host=db;Database=shopping_tests;Username=shopping;Password=isolated-test-password
+      PublicUrl: http://api-key-check:8080
+      DataProtection__Storage: Database
+      Smtp__Host: mailpit
+      Smtp__Port: 1025
+    depends_on:
+      db:
+        condition: service_healthy
   tests:
     image: mcr.microsoft.com/dotnet/sdk:10.0
     working_dir: /source
@@ -36,9 +49,11 @@ services:
     environment:
       TEST_BASE_URL: http://api:8080
       TEST_MAIL_URL: http://mailpit:8025
+      TEST_SECONDARY_API_URL: http://api-key-check:8080
     command: ["dotnet", "run", "--project", "tests/ShoppingGroups.Api.Tests", "--artifacts-path", "/tmp/test-build"]
     depends_on:
       - api
       - mailpit
+      - api-key-check
 volumes:
   test_build:

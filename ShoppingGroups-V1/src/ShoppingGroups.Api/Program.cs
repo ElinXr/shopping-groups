@@ -2,6 +2,8 @@ using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -9,16 +11,16 @@ using ShoppingGroups.Api;
 using ShoppingGroups.Domain;
 
 var builder = WebApplication.CreateBuilder(args);
+var connectionString = PostgresConnection.Resolve(builder.Configuration.GetConnectionString("Database"), builder.Configuration["DATABASE_URL"], builder.Configuration["DATABASE_URL_UNPOOLED"]);
 if (builder.Environment.IsProduction())
 {
     if (!Uri.TryCreate(builder.Configuration["PublicUrl"], UriKind.Absolute, out var publicUrl) || publicUrl.Scheme != "https" || publicUrl.PathAndQuery != "/" || publicUrl.Fragment.Length != 0 || publicUrl.UserInfo.Length != 0)
         throw new InvalidOperationException("Production PublicUrl must be an HTTPS origin.");
-    if ((builder.Configuration.GetConnectionString("Database") ?? "").Contains("CHANGE_ME", StringComparison.Ordinal)
+    if (connectionString.Contains("CHANGE_ME", StringComparison.Ordinal)
         || (builder.Configuration["Bootstrap:AdminPassword"] ?? "").Contains("CHANGE_ME", StringComparison.Ordinal))
         throw new InvalidOperationException("Replace example credentials before production startup.");
 }
-builder.Services.AddDbContext<AppDb>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("Database")
-    ?? throw new InvalidOperationException("ConnectionStrings__Database is required.")));
+builder.Services.AddDbContext<AppDb>(o => o.UseNpgsql(connectionString));
 builder.Services.AddIdentity<AppUser, IdentityRole>(o =>
 {
     o.User.RequireUniqueEmail = true;
@@ -49,7 +51,12 @@ builder.Services.ConfigureApplicationCookie(o =>
 });
 var protection = builder.Services.AddDataProtection().SetApplicationName("ShoppingGroupsV1");
 var keys = builder.Configuration["DataProtection:Path"];
-if (!string.IsNullOrEmpty(keys)) protection.PersistKeysToFileSystem(new DirectoryInfo(keys));
+if (string.Equals(builder.Configuration["DataProtection:Storage"], "Database", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IXmlRepository, DatabaseKeyRepository>();
+    builder.Services.AddOptions<KeyManagementOptions>().Configure<IXmlRepository>((options, repository) => options.XmlRepository = repository);
+}
+else if (!string.IsNullOrEmpty(keys)) protection.PersistKeysToFileSystem(new DirectoryInfo(keys));
 builder.Services.AddAuthorization();
 builder.Services.AddAntiforgery(o => {
     o.HeaderName = "X-CSRF-TOKEN"; o.Cookie.Name = "shopping.csrf"; o.Cookie.SameSite = SameSiteMode.Strict;

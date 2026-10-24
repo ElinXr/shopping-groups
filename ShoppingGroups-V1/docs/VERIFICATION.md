@@ -1,14 +1,16 @@
-# Verification record — 22 October 2026
+# Verification record — updated 24 October 2026
 
 ## Executed successfully
 
-Final local total: **46 passing tests** (29 domain + 17 frontend). This total excludes every blocked integration scenario.
+Latest local total: **72 passing tests** (52 domain + 17 frontend + 3 local Neon environment tests), executed on 24 October. This total excludes every blocked integration scenario.
 
 | Check | Actual result |
 | --- | --- |
-| `dotnet run --project tests/ShoppingGroups.Domain.Tests -c Release` | 29 passed; real .NET 10 execution |
+| `dotnet run --project tests/ShoppingGroups.Domain.Tests -c Release --no-restore` | 52 passed on 24 October; real .NET 10 execution |
 | `npm test --prefix web` | 17 passed, 0 failed; Node’s test runner |
 | `npm run build --prefix web` | TypeScript check and Vite production bundle succeeded |
+| `npm run build` from the project root | Frontend production build succeeded; `built in 651ms`. This command builds the frontend, not the .NET API. |
+| `npm run test:config` | 3 passed: Neon dotenv file selection, quoted credentials and inherited server environment precedence |
 | `dotnet build tests/ShoppingGroups.Api.Tests` | Integration runner compiled with zero errors/warnings; scenarios not executed against an API |
 | `docker compose --env-file .env.example config --quiet` | Development configuration parsed |
 | `docker compose --env-file .env.example -f compose.yaml -f compose.production.yaml config --quiet` | Production configuration parsed |
@@ -17,6 +19,10 @@ Final local total: **46 passing tests** (29 domain + 17 frontend). This total ex
 Frontend dependencies were installed from the existing npm cache after the live registry lookup failed. The generated lockfile records the exact versions and integrities. PWA PNG icons were rendered from the project’s SVG icon. No successful vulnerability audit or external SMTP delivery is claimed.
 
 ## Blocked or not completed
+
+On 24 October the user supplied an existing Neon organization/project and requested CLI setup of its production branch. Both `npm i -g neon@latest --prefix .tools/neon-cli` (workspace-local installation prefix) and the requested fallback `npx --yes neon@latest init -y ... --branch production --services postgres` failed before the CLI could run: `getaddrinfo ENOTFOUND registry.npmjs.org`. No browser login was opened, no installed Neon skills were found, no `neon.ts`/`.neon` or credential file was generated, and `neon deploy` could not run. The project supplied by the user has not been authenticated or inspected from this environment.
+
+The API already uses Npgsql/EF Core and now prefers `DATABASE_URL_UNPOOLED` when Neon supplies it, retaining the explicit `ConnectionStrings__Database` override. `npm run dev:api` loads the CLI's private `.env` or `.env.local` into the server process only. With no credentials pulled, the launch correctly failed with `No database connection configured`. A separate real `dotnet run --project src/ShoppingGroups.Api --no-restore` failed with `NU1301` / `No such host is known. (api.nuget.org:443)` before server startup. No Neon connection, migration, CRUD, session lock, data-protection storage or end-to-end test was verified. The frontend build and isolated tests do not establish that the app runs against Neon.
 
 | Check | Evidence / limit |
 | --- | --- |
@@ -29,6 +35,8 @@ Frontend dependencies were installed from the existing npm cache after the live 
 An additional **compile-only diagnostic** used locally cached EF 8 assemblies and a deliberately nonfunctional Identity type stub in ignored `.tools/compile`. It reported zero C#/ASP.NET compile errors. This does **not** prove that the real EF/Identity 10 application builds or runs and is not counted as a passing backend test. No stub or EF 8 dependency is included in the production project, Docker build or CI workflow.
 
 ## Coverage available for the next full run
+
+The selected zero-budget profile is now Render Free + Neon Free. New code converts `DATABASE_URL` safely, adds a PostgreSQL-backed data-protection key repository and a separate versioned migration, and permits a longer maintenance interval. The code passed the same limited offline compatibility compilation described above. The PostgreSQL key repository and migration still require the real integration run. The integration configuration now exercises database key storage and a second API process validating an existing cookie; those tests are written/compiled, not reported as executed. The free Blueprint's YAML is parsed locally; it has not been applied or validated against an authenticated Render account.
 
 After the user reported Railway unavailable, Render deployment templates were added (`render.yaml` and `deploy/render-postgres.yaml`). Their YAML syntax was checked locally. No provider-side validation or provisioning is claimed; the paid resource choices require review before application. The PostgreSQL template is separate so the web deployment can receive its real Npgsql connection secret before starting. The prior full-stack verification blockers remain unchanged.
 

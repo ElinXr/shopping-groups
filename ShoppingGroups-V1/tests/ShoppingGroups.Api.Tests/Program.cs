@@ -46,6 +46,27 @@ try
     var ownerMe = (await owner.Call("GET", "/auth/me"))!;
     var memberMe = (await member.Call("GET", "/auth/me"))!;
     var memberId = memberMe["id"]!.GetValue<string>();
+    var secondaryUrl = Environment.GetEnvironmentVariable("TEST_SECONDARY_API_URL");
+    if (!string.IsNullOrEmpty(secondaryUrl))
+    {
+        await Test("Database key ring decrypts a login cookie in a second independent API process", async () =>
+        {
+            using var secondary = new HttpClient { BaseAddress = new Uri(secondaryUrl), Timeout = TimeSpan.FromSeconds(20) };
+            for (var attempt = 0; ; attempt++)
+            {
+                try { if ((await secondary.GetAsync("/health/ready")).IsSuccessStatusCode) break; }
+                catch (HttpRequestException) { }
+                if (attempt > 89) throw new Exception("Secondary key-persistence API did not become ready.");
+                await Task.Delay(1000);
+            }
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");
+            request.Headers.Add("Cookie", owner.Cookies.GetCookieHeader(new Uri(baseUrl)));
+            using var response = await secondary.SendAsync(request);
+            Assert(response.IsSuccessStatusCode, "A replacement process must be able to decrypt the existing login cookie using database keys.");
+            var restored = await response.Content.ReadFromJsonAsync<JsonObject>();
+            Assert(restored!["id"]!.GetValue<string>() == ownerMe["id"]!.GetValue<string>(), "The restored session must identify the same user.");
+        });
+    }
     await Test("Public accounts cannot assign themselves admin", async () =>
     {
         Assert(!ownerMe["isAdmin"]!.GetValue<bool>(), "Public account is not an admin.");

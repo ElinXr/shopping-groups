@@ -12,6 +12,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Frontend dependency installation failed.' }
     npm test --prefix web
     if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed.' }
+    npm run test:config
+    if ($LASTEXITCODE -ne 0) { throw 'Server environment tests failed.' }
     npm run build --prefix web
     if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
     docker compose -f compose.tests.yaml up --build --abort-on-container-exit --exit-code-from tests

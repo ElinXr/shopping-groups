@@ -9,7 +9,7 @@ public sealed class MaintenanceWorker(IServiceScopeFactory scopes, IConfiguratio
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Clamp(config.GetValue("Maintenance:IntervalSeconds", 10), 10, 3600)));
         do
         {
             try

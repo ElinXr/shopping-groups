@@ -16,6 +16,7 @@ public class AppDb(DbContextOptions<AppDb> options) : IdentityDbContext<AppUser>
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<EmailMessage> Emails => Set<EmailMessage>();
     public DbSet<AdminAudit> AdminAudits => Set<AdminAudit>();
+    public DbSet<ProtectionKey> ProtectionKeys => Set<ProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
