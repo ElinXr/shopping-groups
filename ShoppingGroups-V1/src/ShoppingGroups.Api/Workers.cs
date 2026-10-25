@@ -82,6 +82,7 @@ public static class Bootstrap
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDb>();
         if (config.GetValue("Database:MigrateOnStartup", true)) await db.Database.MigrateAsync();
+        await services.GetRequiredService<PushIdentity>().Initialize(db);
         var email = config["Bootstrap:AdminEmail"];
         var password = config["Bootstrap:AdminPassword"];
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password)) return;

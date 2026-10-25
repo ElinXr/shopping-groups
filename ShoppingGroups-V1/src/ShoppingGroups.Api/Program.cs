@@ -66,6 +66,13 @@ builder.Services.AddSignalR(o => { o.EnableDetailedErrors = false; o.MaximumRece
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Collaboration>();
 builder.Services.AddHostedService<MaintenanceWorker>();
+builder.Services.AddSingleton<PushIdentity>();
+builder.Services.AddSingleton<PushSignal>();
+builder.Services.AddHostedService<PushWorker>();
+builder.Services.AddHttpClient("PushTransport", client => client.Timeout = TimeSpan.FromSeconds(10))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+// Push endpoint URLs contain device capabilities; never log request URLs.
+builder.Logging.AddFilter("System.Net.Http.HttpClient.PushTransport", LogLevel.None);
 builder.Services.AddProblemDetails();
 builder.Services.AddRateLimiter(o =>
 {
@@ -128,6 +135,7 @@ app.Use(async (context, next) =>
 app.MapGet("/health/live", () => Results.Ok(new { status = "ok" }));
 app.MapGet("/health/ready", async (AppDb db) => await db.Database.CanConnectAsync() ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
 app.MapAuth();
+app.MapPush();
 app.MapGroups();
 app.MapLists();
 app.MapAdmin();

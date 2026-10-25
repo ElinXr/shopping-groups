@@ -17,6 +17,9 @@ public class AppDb(DbContextOptions<AppDb> options) : IdentityDbContext<AppUser>
     public DbSet<EmailMessage> Emails => Set<EmailMessage>();
     public DbSet<AdminAudit> AdminAudits => Set<AdminAudit>();
     public DbSet<ProtectionKey> ProtectionKeys => Set<ProtectionKey>();
+    public DbSet<PushApplicationKey> PushApplicationKeys => Set<PushApplicationKey>();
+    public DbSet<PushDevice> PushDevices => Set<PushDevice>();
+    public DbSet<PushDelivery> PushDeliveries => Set<PushDelivery>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -48,5 +51,13 @@ public class AppDb(DbContextOptions<AppDb> options) : IdentityDbContext<AppUser>
         b.Entity<Notification>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
         b.Entity<Notification>().HasIndex(x => new { x.UserId, x.ReadAt });
         b.Entity<EmailMessage>().HasIndex(x => new { x.SentAt, x.AvailableAt });
+        b.Entity<PushDevice>().HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<PushDevice>().Property(x => x.EndpointHash).HasMaxLength(64);
+        b.Entity<PushDevice>().HasIndex(x => x.EndpointHash).IsUnique();
+        b.Entity<PushDevice>().HasIndex(x => x.UserId);
+        b.Entity<PushDelivery>().HasOne(x => x.Device).WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<PushDelivery>().HasOne(x => x.Notification).WithMany().HasForeignKey(x => x.NotificationId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<PushDelivery>().HasIndex(x => x.AvailableAt);
+        b.Entity<PushDelivery>().HasIndex(x => new { x.NotificationId, x.DeviceId }).IsUnique();
     }
 }

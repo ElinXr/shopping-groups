@@ -13,12 +13,13 @@ export default defineConfig({
       closeBundle() {
         const dist = resolve(import.meta.dirname, "dist");
         const assets = readdirSync(resolve(dist, "assets")).map((file) => `/assets/${file}`);
+        const worker = readFileSync(resolve(import.meta.dirname, "public/sw.js"), "utf8");
         const version = createHash("sha256")
           .update(readFileSync(resolve(dist, "index.html")))
           .update(JSON.stringify(assets))
+          .update(worker)
           .digest("hex")
           .slice(0, 16);
-        const worker = readFileSync(resolve(import.meta.dirname, "public/sw.js"), "utf8");
         writeFileSync(
           resolve(dist, "sw.js"),
           `self.__PRECACHE_ASSETS__=${JSON.stringify(assets)};\nself.__SHELL_VERSION__=${JSON.stringify(version)};\n${worker}`,

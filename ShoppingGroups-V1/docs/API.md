@@ -49,3 +49,16 @@ Validation and domain errors use Problem Details with `status`, `title` and, whe
 | POST `/admin/emails/{numericId}/retry` | Reset failure counter and retry time |
 
 `/health/live` and `/health/ready` are anonymous. `/hubs/events` is the authenticated SignalR endpoint; client subscribes to `Changed({groupId})`. Keep `credentials: same-origin` and use `ws`/`wss` according to the page scheme.
+# Device push notifications
+
+These routes require authentication and the existing CSRF header for mutations.
+
+| Method /api route | Request / behavior |
+| --- | --- |
+| GET /push/config | enabled, publicKey; never returns a private VAPID key |
+| GET /push/devices/{id} | Own device state: enabled, expiresAt, lastAcceptedAt, lastError; other devices appear disabled |
+| PUT /push/devices/{id} | Body: endpoint. Register/refresh own device, bounded to the authenticated cookie expiry and security stamp |
+| DELETE /push/devices/{id} | Revoke own device and pending deliveries; 404 for another user's device |
+| POST /push/devices/{id}/test | Queue an own-device test push; 202 means queued, not delivered |
+
+POST /auth/logout accepts X-Push-Device (browser installation UUID) to revoke that device alongside the cookie session. The frontend then unsubscribes and rotates the local device identifier. All other devices remain enabled. Empty-body Web Push keeps shopping text out of provider requests and lock screens. See [setup, behavior and limits](PUSH-NOTIFICATIONS.md).

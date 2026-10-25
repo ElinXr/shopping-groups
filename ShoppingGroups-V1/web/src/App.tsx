@@ -29,6 +29,8 @@ import { Auth } from "./Auth";
 import { Empty, Modal } from "./components";
 import { Settings } from "./Settings";
 import { Admin } from "./Admin";
+import { PushSettings } from "./PushSettings";
+import { localPushCleanup, syncPush } from "./push";
 import type {
   Activity,
   Group,
@@ -69,7 +71,7 @@ export function App() {
   const [list, setList] = useState<ListDetail | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [tab, setTab] = useState<Tab>("lists");
+  const [tab, setTab] = useState<Tab>(initial.get("notifications") === "1" ? "notices" : "lists");
   const [view, setView] = useState("active");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [error, setError] = useState("");
@@ -148,6 +150,20 @@ export function App() {
       window.removeEventListener("session-expired", expired);
     };
   }, [reload]);
+  useEffect(() => {
+    if (!user) return;
+    const sync = () => { void syncPush(user.id).catch(() => {}); };
+    sync();
+    window.addEventListener("focus", sync);
+    const opened = (event: MessageEvent) => {
+      if (event.data?.type === "open-notifications") { setTab("notices"); reload(); }
+    };
+    navigator.serviceWorker?.addEventListener("message", opened);
+    return () => {
+      window.removeEventListener("focus", sync);
+      navigator.serviceWorker?.removeEventListener("message", opened);
+    };
+  }, [user?.id, reload]);
   useEffect(() => {
     if (!user) return;
     let timer: ReturnType<typeof setTimeout>;
@@ -257,6 +273,7 @@ export function App() {
   }
   async function logout() {
     await api("/auth/logout", "POST");
+    await localPushCleanup().catch(() => {});
     await refreshCsrf();
     setUser(null);
     setGroupId("");
@@ -548,6 +565,7 @@ export function App() {
                   Запази
                 </button>
               </form>
+              <PushSettings userId={user.id} />
               <button
                 className="secondary"
                 disabled={busy}

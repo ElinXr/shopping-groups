@@ -17,7 +17,7 @@ public sealed class EventsHub : Hub
     }
 }
 
-public sealed class Collaboration(AppDb db, IHttpContextAccessor accessor, IHubContext<EventsHub> hub, ILogger<Collaboration> logger)
+public sealed class Collaboration(AppDb db, IHttpContextAccessor accessor, IHubContext<EventsHub> hub, PushSignal pushSignal, PushIdentity pushIdentity, ILogger<Collaboration> logger)
 {
     public string UserId => accessor.HttpContext!.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
@@ -52,7 +52,14 @@ public sealed class Collaboration(AppDb db, IHttpContextAccessor accessor, IHubC
         var users = await db.Members.Where(x => x.GroupId == list.GroupId).Select(x => x.User).ToListAsync();
         foreach (var user in users.Where(x => !x.Disabled))
         {
-            db.Notifications.Add(new Notification { GroupId = list.GroupId, ListId = list.Id, UserId = user.Id, Kind = kind, Text = text });
+            var notice = new Notification { GroupId = list.GroupId, ListId = list.Id, UserId = user.Id, Kind = kind, Text = text };
+            db.Notifications.Add(notice);
+            if (pushIdentity.Enabled)
+            {
+                var devices = await db.PushDevices.Where(x => x.UserId == user.Id && x.ExpiresAt > DateTime.UtcNow && x.SecurityStamp == user.SecurityStamp).ToListAsync();
+                foreach (var device in devices)
+                    db.PushDeliveries.Add(new PushDelivery { DeviceId = device.Id, RecipientId = user.Id, Notification = notice });
+            }
             if (user.EmailNotifications && user.EmailConfirmed)
                 db.Emails.Add(new EmailMessage { GroupId = list.GroupId, UserId = user.Id, To = user.Email!, Subject = $"Shopping Groups · {list.Name}", Body = text });
         }
@@ -91,6 +98,7 @@ public sealed class Collaboration(AppDb db, IHttpContextAccessor accessor, IHubC
 
     public async Task Publish(Guid groupId)
     {
+        pushSignal.Notify();
         try
         {
             var members = await db.Members.Where(x => x.GroupId == groupId && !x.User.Disabled).Select(x => x.UserId).ToListAsync();

@@ -19,6 +19,8 @@ services:
       ConnectionStrings__Database: Host=db;Database=shopping_tests;Username=shopping;Password=isolated-test-password
       PublicUrl: http://api:8080
       DataProtection__Storage: Database
+      Push__TestOrigin: http://tests:8099
+      Push__RetryIntervalSeconds: "1"
       Smtp__Host: mailpit
       Smtp__Port: 1025
       Bootstrap__AdminEmail: admin@tests.example
@@ -35,6 +37,8 @@ services:
       ConnectionStrings__Database: Host=db;Database=shopping_tests;Username=shopping;Password=isolated-test-password
       PublicUrl: http://api-key-check:8080
       DataProtection__Storage: Database
+      Push__TestOrigin: http://tests:8099
+      Push__RetryIntervalSeconds: "1"
       Smtp__Host: mailpit
       Smtp__Port: 1025
     depends_on:
@@ -50,6 +54,7 @@ services:
       TEST_BASE_URL: http://api:8080
       TEST_MAIL_URL: http://mailpit:8025
       TEST_SECONDARY_API_URL: http://api-key-check:8080
+      TEST_PUSH_ORIGIN: http://tests:8099
     command: ["dotnet", "run", "--project", "tests/ShoppingGroups.Api.Tests", "--artifacts-path", "/tmp/test-build"]
     depends_on:
       - api

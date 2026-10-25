@@ -15,6 +15,9 @@ async Task Test(string name, Func<Task> work)
 }
 try
 {
+    using var push = Environment.GetEnvironmentVariable("TEST_PUSH_ORIGIN") is { Length: > 0 } pushOrigin ? new PushTestReceiver(pushOrigin) : null;
+    var ownerPush = Guid.NewGuid();
+    var memberPush = Guid.NewGuid();
     using var owner = new Client(baseUrl);
     using var member = new Client(baseUrl);
     using var stranger = new Client(baseUrl);
@@ -27,6 +30,7 @@ try
         await Task.Delay(1000);
     }
     await Test("Anonymous requests cannot read private groups", async () => await stranger.Call("GET", "/groups", expected: 401));
+    await Test("Anonymous requests cannot read push keys or device subscriptions", async () => await stranger.Call("GET", "/push/config", expected: 401));
     await Test("Mutating requests without CSRF fail", async () =>
     {
         var r = await stranger.Http.PostAsJsonAsync("/api/auth/login", new { email = "nobody@example.com", password = "Invalid_123!" });
@@ -72,6 +76,55 @@ try
         Assert(!ownerMe["isAdmin"]!.GetValue<bool>(), "Public account is not an admin.");
         await owner.Call("GET", "/admin/overview", expected: 403);
     });
+    if (push != null)
+    {
+        await Test("Authenticated push configuration exposes only the public application key", async () =>
+        {
+            var settings = (await owner.Call("GET", "/push/config"))!;
+            Assert(settings["enabled"]!.GetValue<bool>() && settings["publicKey"]!.GetValue<string>().Length == 87, "A public P-256 key is available.");
+            Assert(settings["privateKey"] == null, "Private VAPID keys must never be returned.");
+            push.ExpectedPublicKey = settings["publicKey"]!.GetValue<string>();
+        });
+        await Test("Device registration rejects private-network endpoints and endpoint collisions", async () =>
+        {
+            await owner.Call("PUT", "/push/devices/" + ownerPush, new { endpoint = "http://127.0.0.1/private" }, 400);
+            await owner.Call("PUT", "/push/devices/" + ownerPush, new { endpoint = push.Origin + "/push/" + ownerPush });
+            await owner.Call("PUT", "/push/devices/" + Guid.NewGuid(), new { endpoint = push.Origin + "/push/" + ownerPush }, 409);
+            await member.Call("PUT", "/push/devices/" + ownerPush, new { endpoint = push.Origin + "/push/" + Guid.NewGuid() }, 409);
+        });
+        await Test("Subscriptions are private and other users cannot test or revoke them", async () =>
+        {
+            Assert(!(await member.Call("GET", "/push/devices/" + ownerPush))!["enabled"]!.GetValue<bool>(), "Other accounts cannot read device state.");
+            await member.Call("DELETE", "/push/devices/" + ownerPush, expected: 404);
+            await member.Call("POST", "/push/devices/" + ownerPush + "/test", expected: 404);
+        });
+        await Test("Test pushes reach an HTTP receiver that independently validates VAPID signatures", async () =>
+        {
+            await member.Call("PUT", "/push/devices/" + memberPush, new { endpoint = push.Origin + "/push/" + memberPush });
+            await owner.Call("POST", "/push/devices/" + ownerPush + "/test", expected: 202);
+            await member.Call("POST", "/push/devices/" + memberPush + "/test", expected: 202);
+            await push.Wait("/push/" + ownerPush, 1); await push.Wait("/push/" + memberPush, 1);
+            for (var i = 0; ; i++)
+            {
+                var state = (await owner.Call("GET", "/push/devices/" + ownerPush))!;
+                if (state["lastAcceptedAt"] != null) break;
+                if (i > 30) throw new Exception("Provider acceptance was not recorded.");
+                await Task.Delay(100);
+            }
+        });
+        await Test("An expired provider endpoint is removed on HTTP 410", async () =>
+        {
+            var expired = Guid.NewGuid();
+            await owner.Call("PUT", "/push/devices/" + expired, new { endpoint = push.Origin + "/gone/" + expired });
+            await owner.Call("POST", "/push/devices/" + expired + "/test", expected: 202);
+            for (var i = 0; ; i++)
+            {
+                if (!(await owner.Call("GET", "/push/devices/" + expired))!["enabled"]!.GetValue<bool>()) break;
+                if (i > 50) throw new Exception("Expired device was not removed.");
+                await Task.Delay(100);
+            }
+        });
+    }
     var group = (await owner.Call("POST", "/groups", new { name = "Integration household" }))!["id"]!.GetValue<string>();
     var root = $"/groups/{group}";
     await Test("Strangers cannot enumerate group members or lists", async () =>
@@ -165,6 +218,7 @@ try
         Assert((await owner.Call("GET", listRoot))!["shoppers"]!.AsArray().Count == 2, "Two active shoppers, no duplicate own session.");
         var notifications = (await member.Call("GET", "/notifications/"))!.AsArray();
         Assert(notifications.Count(x => x!["kind"]!.GetValue<string>() == "started") == 1, "One automatic start notification per run.");
+        if (push != null) { await push.Wait("/push/" + ownerPush, 2); await push.Wait("/push/" + memberPush, 2); }
     });
     await Test("Manual notification previews changes and consumes them once", async () =>
     {
@@ -172,6 +226,7 @@ try
         await member.Call("POST", listRoot + "/notify");
         Assert((await owner.Call("GET", listRoot + "/summary"))!["count"]!.GetValue<int>() == 0, "Sent changes no longer pending.");
         await owner.Call("POST", listRoot + "/notify", expected: 400);
+        if (push != null) { await push.Wait("/push/" + ownerPush, 3); await push.Wait("/push/" + memberPush, 3); }
     });
     await Test("Concurrent writes cannot silently overwrite each other", async () =>
     {
@@ -188,6 +243,7 @@ try
         Assert(l["completed"]!.GetValue<bool>() && l["shoppers"]!.AsArray().Count == 0, "Completion closes all active sessions.");
         foreach (var client in new[] { owner, member }) Assert((await client.Call("GET", "/notifications/"))!.AsArray().Count(n => n!["kind"]!.GetValue<string>() == "completed") == 1, "Each member has exactly one completion alert.");
         Assert((await owner.Call("GET", root + "/lists/"))!.AsArray().Count == 2, "Completed list remains visible.");
+        if (push != null) { await push.Wait("/push/" + ownerPush, 4); await push.Wait("/push/" + memberPush, 4); }
     });
     await Test("Adding a product to completed list reactivates it", async () =>
     {
@@ -248,6 +304,12 @@ try
         await owner.Call("DELETE", root + "/members/" + memberId);
         await member.Call("GET", listRoot, expected: 404);
         await member.Call("GET", root + "/activity", expected: 404);
+        if (push != null)
+        {
+            await owner.Call("POST", listRoot + "/notify");
+            await push.Wait("/push/" + ownerPush, 5);
+            Assert(push.Count("/push/" + memberPush) == 4, "Removed members must not receive subsequent group pushes.");
+        }
     });
     await Test("Confirmed user can reset password; old session is revoked", async () =>
     {
@@ -264,11 +326,23 @@ try
         await member.Call("GET", "/auth/me", expected: 401);
         await member.Call("POST", "/auth/login", new { email = memberEmail, password }, 401);
     });
+    var anotherOwnerDevice = Guid.NewGuid();
+    if (push != null) await owner.Call("PUT", "/push/devices/" + anotherOwnerDevice, new { endpoint = push.Origin + "/push/" + anotherOwnerDevice });
     await Test("Logout invalidates the browser session", async () =>
     {
+        if (push != null) owner.Http.DefaultRequestHeaders.Add("X-Push-Device", ownerPush.ToString());
         await owner.Call("POST", "/auth/logout");
         await owner.Call("GET", "/auth/me", expected: 401);
     });
+    if (push != null)
+    {
+        await Test("Logging out revokes that device's push subscription", async () =>
+        {
+            await owner.Login(ownerEmail, password);
+            Assert(!(await owner.Call("GET", "/push/devices/" + ownerPush))!["enabled"]!.GetValue<bool>(), "A logged-out device must not remain subscribed.");
+            Assert((await owner.Call("GET", "/push/devices/" + anotherOwnerDevice))!["enabled"]!.GetValue<bool>(), "Logging out on one device must not revoke the user's other device.");
+        });
+    }
     Console.WriteLine($"{passed} PostgreSQL/HTTP/SignalR integration tests passed.");
     return 0;
 }

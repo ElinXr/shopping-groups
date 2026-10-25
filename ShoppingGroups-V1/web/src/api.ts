@@ -1,3 +1,4 @@
+import { pushDeviceId } from "./push-device";
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -20,6 +21,7 @@ export async function api<T = void>(path: string, method = "GET", data?: unknown
     credentials: "same-origin",
     cache: "no-store",
     headers: {
+      ...(path === "/auth/logout" ? { "X-Push-Device": pushDeviceId() } : {}),
       ...(data === undefined ? {} : { "Content-Type": "application/json" }),
       ...(method === "GET" ? {} : { "X-CSRF-TOKEN": csrf }),
     },

@@ -1,5 +1,8 @@
 using ShoppingGroups.Domain;
 using System.Data.Common;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 var passed = 0;
 void Test(string name, Action action)
@@ -90,4 +93,72 @@ Test("Unknown URL options fail instead of silently changing TLS behavior", () =>
 Test("Unknown SSL settings are rejected", () => InvalidConnection("postgres://u:secret-password@host/db?sslmode=typo"));
 Test("Invalid channel binding is rejected", () => InvalidConnection("postgres://u:secret-password@host/db?channel_binding=typo"));
 Test("Connection timeout has a bounded positive value", () => { InvalidConnection("postgres://u:secret-password@host/db?connect_timeout=0"); InvalidConnection("postgres://u:secret-password@host/db?connect_timeout=301"); });
+Test("Web Push produces a matching P-256 application key pair", () => {
+    var pair = WebPushProtocol.GenerateKeys();
+    var bytes = WebPushProtocol.Decode(pair.PublicKey);
+    Equal(65, bytes.Length); Equal((byte)4, bytes[0]);
+    using var key = ECDsa.Create(); key.ImportPkcs8PrivateKey(Convert.FromBase64String(pair.PrivateKey), out _);
+    var point = key.ExportParameters(false);
+    Equal(Convert.ToHexString(point.Q.X!), Convert.ToHexString(bytes[1..33]));
+    Equal(Convert.ToHexString(point.Q.Y!), Convert.ToHexString(bytes[33..]));
+});
+Test("VAPID authenticates the provider origin with a valid ES256 JWT and bounded expiry", () => {
+    var pair = WebPushProtocol.GenerateKeys();
+    var now = DateTimeOffset.FromUnixTimeSeconds(1800000000);
+    var authorization = WebPushProtocol.Authorization("https://fcm.googleapis.com/push/private-device", pair.PublicKey, pair.PrivateKey, "https://shopping.example", now);
+    var jwt = authorization["vapid t=".Length..].Split(", k=")[0];
+    var parts = jwt.Split('.');
+    using var header = JsonDocument.Parse(WebPushProtocol.Decode(parts[0]));
+    using var claims = JsonDocument.Parse(WebPushProtocol.Decode(parts[1]));
+    Equal("ES256", header.RootElement.GetProperty("alg").GetString());
+    Equal("https://fcm.googleapis.com", claims.RootElement.GetProperty("aud").GetString());
+    Equal("https://shopping.example", claims.RootElement.GetProperty("sub").GetString());
+    Equal(now.AddHours(12).ToUnixTimeSeconds(), claims.RootElement.GetProperty("exp").GetInt64());
+    var point = WebPushProtocol.Decode(pair.PublicKey);
+    using var verify = ECDsa.Create(new ECParameters { Curve = ECCurve.NamedCurves.nistP256, Q = new ECPoint { X = point[1..33], Y = point[33..] } });
+    Equal(true, verify.VerifyData(Encoding.ASCII.GetBytes(parts[0] + "." + parts[1]), WebPushProtocol.Decode(parts[2]), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+    Equal(false, jwt.Contains("private-device", StringComparison.Ordinal));
+});
+Test("VAPID rejects mismatched application keys", () => {
+    var one = WebPushProtocol.GenerateKeys(); var other = WebPushProtocol.GenerateKeys();
+    try { WebPushProtocol.Authorization("https://fcm.googleapis.com/push/a", one.PublicKey, other.PrivateKey, "https://shopping.example", DateTimeOffset.UtcNow); }
+    catch (ArgumentException) { return; }
+    throw new Exception("Mismatched VAPID keys accepted");
+});
+Test("VAPID rejects insecure contact URLs", () => {
+    var pair = WebPushProtocol.GenerateKeys();
+    try { WebPushProtocol.Authorization("https://fcm.googleapis.com/push/a", pair.PublicKey, pair.PrivateKey, "http://shopping.example", DateTimeOffset.UtcNow); }
+    catch (ArgumentException) { return; }
+    throw new Exception("Invalid VAPID subject accepted");
+});
+Test("Push accepts browser provider endpoints", () => {
+    foreach (var host in new[] { "fcm.googleapis.com", "updates.push.services.mozilla.com", "web.push.apple.com", "a.push.apple.com", "wns2.notify.windows.com" })
+        Equal(true, WebPushProtocol.AllowedEndpoint("https://" + host + "/private-token"));
+});
+Test("Push prevents requests to local hosts, plain HTTP and custom ports", () => {
+    foreach (var endpoint in new[] { "https://127.0.0.1/push", "http://fcm.googleapis.com/push", "https://fcm.googleapis.com:8443/push", "https://localhost/push", "https://192.168.1.1/push" })
+        Equal(false, WebPushProtocol.AllowedEndpoint(endpoint));
+});
+Test("Push provider allowlist rejects suffix attacks and embedded credentials", () => {
+    foreach (var endpoint in new[] { "https://fcm.googleapis.com.evil.test/push", "https://evilpush.apple.com/push", "https://web.push.apple.com@evil.test/push", "https://u:p@fcm.googleapis.com/push" })
+        Equal(false, WebPushProtocol.AllowedEndpoint(endpoint));
+});
+Test("Push rejects missing paths, fragments and oversized endpoints", () => {
+    Equal(false, WebPushProtocol.AllowedEndpoint("https://fcm.googleapis.com/"));
+    Equal(false, WebPushProtocol.AllowedEndpoint("https://fcm.googleapis.com/push#fragment"));
+    Equal(false, WebPushProtocol.AllowedEndpoint("https://fcm.googleapis.com/" + new string('a', 4096)));
+});
+Test("Push test origin is rejected unless explicitly supplied", () => {
+    Equal(false, WebPushProtocol.AllowedEndpoint("http://tests:8099/push/a"));
+    Equal(true, WebPushProtocol.AllowedEndpoint("http://tests:8099/push/a", "http://tests:8099"));
+    Equal(false, WebPushProtocol.AllowedEndpoint("http://tests.evil:8099/push/a", "http://tests:8099"));
+});
+Test("Web Push request contains no shopping content and preserves VAPID and TTL", () => {
+    using var request = WebPushProtocol.Request("https://fcm.googleapis.com/push/a", "vapid t=signed-token, k=public-key");
+    Equal(HttpMethod.Post, request.Method);
+    Equal(0L, request.Content!.Headers.ContentLength);
+    Equal("86400", request.Headers.GetValues("TTL").Single());
+    Equal("vapid t=signed-token, k=public-key", request.Headers.GetValues("Authorization").Single());
+    Equal(false, request.Content.Headers.ContentEncoding.Any());
+});
 Console.WriteLine($"{passed} domain tests passed.");

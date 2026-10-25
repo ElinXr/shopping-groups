@@ -60,7 +60,16 @@ public static class AuthEndpoints
             return result.Succeeded ? Results.Ok() : Results.Problem(statusCode: result.IsLockedOut ? 429 : 401, title: "Грешен имейл или парола, или временно заключен профил.");
         }).AllowAnonymous();
 
-        auth.MapPost("/logout", async (SignInManager<AppUser> signIn) => { await signIn.SignOutAsync(); return Results.NoContent(); }).RequireAuthorization();
+        auth.MapPost("/logout", async (SignInManager<AppUser> signIn, HttpContext context, AppDb db) =>
+        {
+            if (Guid.TryParse(context.Request.Headers["X-Push-Device"].ToString(), out var deviceId))
+            {
+                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                await db.PushDevices.Where(x => x.Id == deviceId && x.UserId == userId).ExecuteDeleteAsync();
+            }
+            await signIn.SignOutAsync();
+            return Results.NoContent();
+        }).RequireAuthorization();
 
         app.MapGet("/api/auth/me", async (ClaimsPrincipal principal, UserManager<AppUser> users) =>
         {
