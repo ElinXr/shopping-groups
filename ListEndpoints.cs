@@ -129,13 +129,15 @@ public static class ListEndpoints
             var changes = await db.Activities.Where(x => x.ListId == listId && x.Id > list.LastSummaryActivityId && Rules.ProductChanges.Contains(x.Kind))
                 .OrderBy(x => x.Id).ToListAsync();
             return Results.Ok(new { count = changes.Count, summary = changes.Count == 0 ? "" : NotificationText.Summary(changes.Select(x => (x.Kind, x.Text, x.ActorName, x.At))),
-                through = changes.Count == 0 ? list.LastSummaryActivityId : changes[^1].Id });
+                through = changes.Count == 0 ? list.LastSummaryActivityId : changes[^1].Id,
+                entries = changes.TakeLast(20).Reverse().Select(x => NotificationText.PreviewChange(x.Id, x.Kind, x.Text, x.ActorName, x.At)) });
         });
 
-        api.MapPost("/{listId:guid}/notify", async (Guid groupId, Guid listId, AppDb db, Collaboration c) =>
+        api.MapPost("/{listId:guid}/notify", async (Guid groupId, Guid listId, long? through, AppDb db, Collaboration c) =>
         {
+            if (through is <= 0) throw new RuleException(400, "validation", "Обновете прегледа на известието и опитайте отново.");
             var list = await c.List(groupId, listId);
-            var changes = await db.Activities.Where(x => x.ListId == listId && x.Id > list.LastSummaryActivityId && Rules.ProductChanges.Contains(x.Kind))
+            var changes = await db.Activities.Where(x => x.ListId == listId && x.Id > list.LastSummaryActivityId && (through == null || x.Id <= through) && Rules.ProductChanges.Contains(x.Kind))
                 .OrderBy(x => x.Id).ToListAsync();
             var summary = NotificationText.Summary(changes.Select(x => (x.Kind, x.Text, x.ActorName, x.At)));
             await c.Notify(list, "summary", summary);

@@ -91,6 +91,23 @@ static class ProductExperienceTests
             Check(!notice["listAvailable"]!.GetValue<bool>(), "Deleted list marked unavailable.");
             await user.Call("PUT", "/notifications/" + notice["id"]!.GetValue<long>() + "/read");
         });
+        await test("A structured summary sends only through its preview and retains later changes", async () => {
+            var snapshotList = (await user.Call("POST", root + "/", new { name = "Само прегледаните промени" }))!["id"]!.GetValue<string>();
+            var snapshotPath = root + "/" + snapshotList;
+            await user.Call("POST", snapshotPath + "/items", new { text = "Хляб", quantity = 2, unit = "pcs" });
+            var preview = (await user.Call("GET", snapshotPath + "/summary"))!;
+            var first = preview["entries"]!.AsArray().Single()!;
+            Check(first["product"]!.GetValue<string>() == "Хляб · 2 бр." && first["actorName"]!.GetValue<string>() == "Мария", "Structured product and original actor.");
+            Check(first["kind"]!.GetValue<string>() == "item.added" && first["at"] != null, "Action kind and time available to the UI.");
+            var through = preview["through"]!.GetValue<long>();
+            await user.Call("POST", snapshotPath + "/items", new { text = "Сирене", quantity = 0.5m, unit = "kg" });
+            await user.Call("POST", snapshotPath + "/notify?through=" + through);
+            var sent = (await user.Call("GET", "/notifications/"))!.AsArray().First(n => n!["listId"]?.GetValue<string>() == snapshotList && n["kind"]!.GetValue<string>() == "summary")!;
+            Check(sent["text"]!.GetValue<string>().Contains("Хляб") && !sent["text"]!.GetValue<string>().Contains("Сирене"), "Unseen later change was not silently included.");
+            var pending = (await user.Call("GET", snapshotPath + "/summary"))!;
+            Check(pending["count"]!.GetValue<int>() == 1 && pending["entries"]!.AsArray().Single()!["product"]!.GetValue<string>() == "Сирене · 0,5 кг", "Later change remains pending.");
+            await user.Call("POST", snapshotPath + "/notify?through=0", expected: 400);
+        });
     }
     static string Version(JsonNode item) => item["version"]!.GetValue<string>();
     static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }

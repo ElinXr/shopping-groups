@@ -1,5 +1,14 @@
 # Verification record — updated 25 October 2026
 
+## Friendly summary v4 — latest local evidence
+
+The user supplied a screenshot of the older raw-text summary and requested a better format. The new component presents action cards with product/amount separated from actor/time, correct singular/plural copy, recipient group context and an explicit send action. GET summary adds typed entries; POST notify accepts an optional through cursor so later unseen changes remain pending.
+
+**139 local tests pass:** 80 domain/protocol, 56 frontend/client/history/group-selection/worker/summary-preview and 3 environment. The production frontend build succeeds. New tests cover metadata-preserving preview conversion, previous/current product details, legacy text, quantity display, Bulgarian copy, Sofia relative time/DST/midnight and bounded-send paths. The updated API integration runner compiles with zero warnings/errors and includes a new HTTP/PostgreSQL snapshot-boundary scenario; it is not executed locally.
+
+The full API 10 build and Docker execution remain blocked by the previously recorded NuGet DNS and missing Linux engine. CompileOnly succeeds with EF 8/Identity diagnostic stubs and is not counted as API 10 validation. No browser-origin access was retried after the explicit refusal. No visual, physical-device or live-deployment success is claimed for v4. The complete update archive includes v3 and adds no external dependency. [Usage and deployment](FRIENDLY-SUMMARY-V4.md).
+
+
 ## Product experience v3 — latest local evidence
 
 The user reports that the preceding push change now works and requests clearer notifications, structured quantities, logical fixes and a friendlier group picker. This is user-reported prior-release success, not an independent test of v3.

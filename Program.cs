@@ -132,7 +132,7 @@ app.Use(async (context, next) =>
     }
     await next(context);
 });
-app.MapGet("/health/live", () => Results.Ok(new { status = "ok", release = "product-experience-v3" }));
+app.MapGet("/health/live", () => Results.Ok(new { status = "ok", release = "friendly-summary-v4" }));
 app.MapGet("/health/ready", async (AppDb db) => await db.Database.CanConnectAsync() ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
 app.MapAuth();
 app.MapPush();

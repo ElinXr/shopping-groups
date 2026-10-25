@@ -31,6 +31,8 @@ import { Admin } from "./Admin";
 import { PushSettings } from "./PushSettings";
 import { localPushCleanup, syncPush } from "./push";
 import { ProductForm } from "./ProductForm";
+import { SummaryPreview } from "./SummaryPreview";
+import { summarySendPath } from "./summary-preview";
 import { GroupPicker } from "./GroupPicker";
 import { chooseGroup, preferredGroup, rememberGroup } from "./group-selection";
 import { NotificationCenter } from "./NotificationCenter";
@@ -1106,35 +1108,31 @@ export function App() {
                   ? "Име на списъка"
                   : dialog.kind === "product"
                     ? "Промени продукта"
-                    : "Извести групата"
+                    : "Сподели с групата"
           }
           close={() => setDialog(null)}
         >
           {error && <p className="alert error" role="alert">{error}</p>}
           {dialog.kind === "summary" ? (
             <>
-              <p className="muted">
-                {dialog.summary.count} промени от последното изпратено обобщение.
-              </p>
-              <div className="summary-preview">
-                {dialog.summary.summary || "Няма нови промени за изпращане."}
-              </div>
-              <p className="hint">
-                При изпращане ще включим и новите промени, направени междувременно.
-              </p>
+              <SummaryPreview summary={dialog.summary} listName={list?.name} groupName={group?.name}
+                onRefresh={() => { void run(async () => {
+                  const summary = await api<Summary>(`${base}/summary`);
+                  setDialog({ kind: "summary", summary });
+                }, false); }} />
               <button
                 className="primary wide"
-                disabled={busy || !dialog.summary.count}
+                disabled={busy || !online || !dialog.summary.count || !dialog.summary.entries?.length}
                 onClick={() => {
                   void run(async () => {
-                    await api(`${base}/notify`, "POST");
+                    await api(summarySendPath(base, dialog.summary.through), "POST");
                     setDialog(null);
-                    setSuccess("Обобщението е изпратено до групата.");
+                    setSuccess("Групата е уведомена.");
                   });
                 }}
               >
                 <Send size={17} />
-                Изпрати обобщението
+                Изпрати известието
               </button>
             </>
           ) : dialog.kind === "product" ? (

@@ -6,6 +6,7 @@ using System.Text.Unicode;
 namespace ShoppingGroups.Domain;
 
 public sealed record NotificationContent(string Title, string Text);
+public sealed record SummaryChange(long Id, string Kind, string Product, string? PreviousProduct, string ActorName, DateTime At);
 
 public static class NotificationText
 {
@@ -20,17 +21,27 @@ public static class NotificationText
     public static string Time(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Sofia)
         .ToString("dd.MM.yyyy HH:mm", CultureInfo.InvariantCulture);
 
+    public static SummaryChange PreviewChange(long id, string kind, string text, string actorName, DateTime at)
+    {
+        if (!Actions.TryGetValue(kind, out var action))
+            throw new ArgumentException("Only product activity belongs in a summary.", nameof(kind));
+        var product = text.StartsWith(action.Prefix, StringComparison.Ordinal) ? text[action.Prefix.Length..] : text;
+        var arrow = product.IndexOf(" → ", StringComparison.Ordinal);
+        return kind == "item.edited" && arrow > 0
+            ? new(id, kind, product[(arrow + 3)..], product[..arrow], actorName, at)
+            : new(id, kind, product, null, actorName, at);
+    }
+
     public static string Summary(IEnumerable<(string Kind, string Text, string ActorName, DateTime At)> changes)
     {
         var entries = changes.Where(x => Actions.ContainsKey(x.Kind)).ToArray();
         if (entries.Length == 0) throw new RuleException(400, "no_changes", "Няма нови промени за изпращане.");
         var lines = entries.TakeLast(20).Reverse().Select(x => {
             var action = Actions[x.Kind];
-            var product = x.Text.StartsWith(action.Prefix, StringComparison.Ordinal) ? x.Text[action.Prefix.Length..] : x.Text;
-            var arrow = product.IndexOf(" → ", StringComparison.Ordinal);
-            if (x.Kind == "item.edited" && arrow > 0)
-                return $"{x.ActorName} промени „{product[..arrow]}“ на „{product[(arrow + 3)..]}“ ({Time(x.At)}).";
-            return $"{x.ActorName} {action.Verb} „{product}“ ({Time(x.At)}).";
+            var change = PreviewChange(0, x.Kind, x.Text, x.ActorName, x.At);
+            if (change.PreviousProduct != null)
+                return $"{x.ActorName} промени „{change.PreviousProduct}“ на „{change.Product}“ ({Time(x.At)}).";
+            return $"{x.ActorName} {action.Verb} „{change.Product}“ ({Time(x.At)}).";
         }).ToList();
         if (entries.Length > 20) lines.Add($"И още {entries.Length - 20} промени. Вижте пълната история в списъка.");
         return string.Join('\n', lines);

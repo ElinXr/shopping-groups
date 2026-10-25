@@ -258,4 +258,23 @@ Test("Product edits read as a sentence rather than an audit-log arrow", () => {
     Equal(true, text.StartsWith("Мария промени „Мляко · 1 л“ на „Мляко · 2 л“"));
     Equal(false, text.Contains("→"));
 });
+Test("Structured preview separates the product from the actor and original time", () => {
+    var at = new DateTime(2026, 10, 25, 20, 35, 0, DateTimeKind.Utc);
+    var row = NotificationText.PreviewChange(42, "item.added", "Добавено: test · 2 бр.", "Elin2", at);
+    Equal(42L, row.Id); Equal("test · 2 бр.", row.Product); Equal("Elin2", row.ActorName); Equal(at, row.At); Equal<string?>(null, row.PreviousProduct);
+});
+Test("Edited preview carries previous and current details as separate values", () => {
+    var row = NotificationText.PreviewChange(43, "item.edited", "Променено: Мляко · 1 л → Мляко · 2 л", "Мария", DateTime.UtcNow);
+    Equal("Мляко · 1 л", row.PreviousProduct); Equal("Мляко · 2 л", row.Product);
+});
+Test("Unfamiliar legacy text and literal arrows in added product names remain intact", () => {
+    var row = NotificationText.PreviewChange(44, "item.added", "Продукт → специален", "Мария", DateTime.UtcNow);
+    Equal("Продукт → специален", row.Product); Equal<string?>(null, row.PreviousProduct);
+});
+Test("Every product change has a structured preview and non-product activity is rejected", () => {
+    foreach (var kind in Rules.ProductChanges) Equal(kind, NotificationText.PreviewChange(1, kind, "Текст", "Мария", DateTime.UtcNow).Kind);
+    try { NotificationText.PreviewChange(1, "shopping.started", "Text", "Мария", DateTime.UtcNow); }
+    catch (ArgumentException) { return; }
+    throw new Exception("Non-product preview was accepted.");
+});
 Console.WriteLine($"{passed} domain tests passed.");

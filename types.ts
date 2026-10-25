@@ -80,7 +80,16 @@ export interface Invite {
   maxUses: number;
   uses: number;
 }
+export interface SummaryChange {
+  id: number;
+  kind: string;
+  product: string;
+  previousProduct: string | null;
+  actorName: string;
+  at: string;
+}
 export interface Summary {
+  entries?: SummaryChange[];
   count: number;
   summary: string;
   through: number;

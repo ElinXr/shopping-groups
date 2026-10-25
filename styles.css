@@ -2209,3 +2209,141 @@ dialog::backdrop {
     max-height: 45dvh;
   }
 }
+
+/* A share preview separates the product from its author and time. */
+.share-intro {
+  color: #758476;
+  font-size: 14px;
+  line-height: 1.65;
+  margin-bottom: 16px;
+}
+.share-count {
+  font-size: 12px;
+  font-weight: 650;
+  color: #60775e;
+  margin-bottom: 10px;
+}
+.share-changes {
+  list-style: none;
+  padding: 2px;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  max-height: min(43dvh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.share-change {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e2e9dd;
+  border-radius: 12px;
+  background: #fcfdf9;
+}
+.share-change-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #27664f;
+  background: #e8f2e7;
+}
+.share-change.edited .share-change-icon {
+  color: #8b681e;
+  background: #f8f0d9;
+}
+.share-change.deleted .share-change-icon {
+  color: #846b67;
+  background: #f4ebe7;
+}
+.share-change-content {
+  min-width: 0;
+  flex: 1;
+}
+.share-action {
+  display: block;
+  font-size: 11px;
+  color: #738970;
+  margin-bottom: 5px;
+}
+.share-product {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.share-product strong {
+  color: #283e32;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.share-amount {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #edf3e5;
+  color: #456340;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.share-author {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 11px 0 0;
+  color: #82907c;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.share-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  color: #5e7955;
+  background: #edf1e5;
+  font-size: 10px;
+  flex: none;
+}
+.share-previous {
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #81907b;
+  overflow-wrap: anywhere;
+}
+.share-recipient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0;
+  color: #7b8d76;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.share-recipient svg { flex: none; }
+.share-more {
+  color: #7b8d76;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+.share-missing {
+  border: 1px solid #e2e9dd;
+  border-radius: 10px;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+@media (max-width: 400px) {
+  .share-change { padding: 12px; gap: 9px; }
+  .share-change-icon { width: 30px; height: 30px; }
+  .share-product strong { font-size: 15px; }
+}
