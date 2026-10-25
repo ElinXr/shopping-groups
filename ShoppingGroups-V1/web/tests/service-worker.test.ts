@@ -149,3 +149,27 @@ test("activation removes old build caches", async () => {
   await pending;
   assert.deepEqual(w.deleted, ["shopping-shell-old"]);
 });
+
+test("decrypted push content displays the author and original addition time", async () => {
+  const w = worker();
+  let pending: Promise<unknown> = Promise.resolve();
+  w.handlers.push({
+    data: { json: () => ({ version: 1, body: "Мария · 25.10.2026 14:25 — Добавено: Мляко", at: "2026-10-25T12:35:00Z", url: "https://evil.example" }) },
+    waitUntil: (p: Promise<unknown>) => { pending = p; },
+  });
+  await pending;
+  assert.ok(w.displayed[0].options.body.includes("Мария"));
+  assert.ok(w.displayed[0].options.body.includes("14:25"));
+  assert.equal(w.displayed[0].options.timestamp, Date.parse("2026-10-25T12:35:00Z"));
+  assert.ok(!JSON.stringify(w.displayed).includes("evil.example"));
+});
+test("malformed push JSON still produces a visible fallback notification", async () => {
+  const w = worker();
+  let pending: Promise<unknown> = Promise.resolve();
+  w.handlers.push({
+    data: { json: () => { throw new Error("malformed"); } },
+    waitUntil: (p: Promise<unknown>) => { pending = p; },
+  });
+  await pending;
+  assert.equal(w.displayed.length, 1);
+});

@@ -40,19 +40,22 @@ public sealed class Collaboration(AppDb db, IHttpContextAccessor accessor, IHubC
         return list;
     }
 
-    public async Task Log(Guid groupId, Guid? listId, string kind, string text)
+    public async Task Log(Guid groupId, Guid? listId, string kind, string text, DateTime? at = null)
     {
         var user = await db.Users.SingleAsync(x => x.Id == UserId);
         db.Activities.Add(new Activity { GroupId = groupId, ListId = listId, Kind = kind, Text = text,
-            ActorId = UserId, ActorName = user.DisplayName });
+            ActorId = UserId, ActorName = user.DisplayName, At = at ?? DateTime.UtcNow });
     }
 
     public async Task Notify(ShoppingList list, string kind, string text)
     {
+        var actor = await db.Users.SingleAsync(x => x.Id == UserId);
+        var at = DateTime.UtcNow;
+        text = NotificationText.FromActor(actor.DisplayName, text, at);
         var users = await db.Members.Where(x => x.GroupId == list.GroupId).Select(x => x.User).ToListAsync();
         foreach (var user in users.Where(x => !x.Disabled))
         {
-            var notice = new Notification { GroupId = list.GroupId, ListId = list.Id, UserId = user.Id, Kind = kind, Text = text };
+            var notice = new Notification { GroupId = list.GroupId, ListId = list.Id, UserId = user.Id, Kind = kind, Text = text, At = at };
             db.Notifications.Add(notice);
             if (pushIdentity.Enabled)
             {

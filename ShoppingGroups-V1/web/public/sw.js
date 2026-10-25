@@ -50,11 +50,22 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-// Empty-body Web Push: always display immediately, including on Safari.
-// Private group/list text and subscription credentials are never cached or displayed.
+// The browser decrypts aes128gcm Web Push before exposing event.data.
+// Always show a notification, including when an old/malformed payload is received.
 self.addEventListener("push", (event) => {
+  let body = "Имате нови известия от вашите групи. Отворете приложението, за да ги видите.";
+  let timestamp = Date.now();
+  try {
+    const data = event.data?.json();
+    if (data?.version === 1 && typeof data.body === "string" && data.body.trim()) {
+      body = Array.from(data.body).slice(0, 1800).join("");
+      const at = Date.parse(data.at);
+      if (Number.isFinite(at)) timestamp = at;
+    }
+  } catch { /* A generic notification keeps older push subscriptions usable. */ }
   event.waitUntil(self.registration.showNotification("Shopping Groups", {
-    body: "Имате нови известия от вашите групи. Отворете приложението, за да ги видите.",
+    body,
+    timestamp,
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     tag: "shopping-groups",

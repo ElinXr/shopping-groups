@@ -113,7 +113,7 @@ public static class ListEndpoints
             var item = new Product { ListId = listId, Text = text, NormalizedText = Rules.DuplicateKey(text), AddedBy = c.UserId };
             list.Items.Add(item);
             db.Products.Add(item);
-            await c.Log(groupId, listId, "item.added", $"Добавено: {text}");
+            await c.Log(groupId, listId, "item.added", $"Добавено: {text}", item.CreatedAt);
             await c.Recompute(list);
             await c.Save(groupId);
             return Results.Ok(new { item.Id, item.Version });
@@ -199,7 +199,7 @@ public static class ListEndpoints
             var list = await c.List(groupId, listId);
             var changes = await db.Activities.Where(x => x.ListId == listId && x.Id > list.LastSummaryActivityId && Rules.ProductChanges.Contains(x.Kind))
                 .OrderBy(x => x.Id).ToListAsync();
-            return Results.Ok(new { count = changes.Count, summary = changes.Count == 0 ? "" : Rules.Summary(changes.Select(x => (x.Kind, x.Text))),
+            return Results.Ok(new { count = changes.Count, summary = changes.Count == 0 ? "" : NotificationText.Summary(changes.Select(x => (x.Kind, x.Text, x.ActorName, x.At))),
                 through = changes.Count == 0 ? list.LastSummaryActivityId : changes[^1].Id });
         });
 
@@ -208,7 +208,7 @@ public static class ListEndpoints
             var list = await c.List(groupId, listId);
             var changes = await db.Activities.Where(x => x.ListId == listId && x.Id > list.LastSummaryActivityId && Rules.ProductChanges.Contains(x.Kind))
                 .OrderBy(x => x.Id).ToListAsync();
-            var summary = Rules.Summary(changes.Select(x => (x.Kind, x.Text)));
+            var summary = NotificationText.Summary(changes.Select(x => (x.Kind, x.Text, x.ActorName, x.At)));
             await c.Notify(list, "summary", $"Промени в „{list.Name}“\n{summary}");
             list.LastSummaryActivityId = changes[^1].Id;
             await c.Log(groupId, listId, "summary.sent", "Изпратено обобщение на последните промени.");

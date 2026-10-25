@@ -87,10 +87,10 @@ try
         });
         await Test("Device registration rejects private-network endpoints and endpoint collisions", async () =>
         {
-            await owner.Call("PUT", "/push/devices/" + ownerPush, new { endpoint = "http://127.0.0.1/private" }, 400);
-            await owner.Call("PUT", "/push/devices/" + ownerPush, new { endpoint = push.Origin + "/push/" + ownerPush });
-            await owner.Call("PUT", "/push/devices/" + Guid.NewGuid(), new { endpoint = push.Origin + "/push/" + ownerPush }, 409);
-            await member.Call("PUT", "/push/devices/" + ownerPush, new { endpoint = push.Origin + "/push/" + Guid.NewGuid() }, 409);
+            await owner.Call("PUT", "/push/devices/" + ownerPush, push.Subscription("http://127.0.0.1/private"), 400);
+            await owner.Call("PUT", "/push/devices/" + ownerPush, push.Subscription(push.Origin + "/push/" + ownerPush));
+            await owner.Call("PUT", "/push/devices/" + Guid.NewGuid(), push.Subscription(push.Origin + "/push/" + ownerPush), 409);
+            await member.Call("PUT", "/push/devices/" + ownerPush, push.Subscription(push.Origin + "/push/" + Guid.NewGuid()), 409);
         });
         await Test("Subscriptions are private and other users cannot test or revoke them", async () =>
         {
@@ -100,7 +100,7 @@ try
         });
         await Test("Test pushes reach an HTTP receiver that independently validates VAPID signatures", async () =>
         {
-            await member.Call("PUT", "/push/devices/" + memberPush, new { endpoint = push.Origin + "/push/" + memberPush });
+            await member.Call("PUT", "/push/devices/" + memberPush, push.Subscription(push.Origin + "/push/" + memberPush));
             await owner.Call("POST", "/push/devices/" + ownerPush + "/test", expected: 202);
             await member.Call("POST", "/push/devices/" + memberPush + "/test", expected: 202);
             await push.Wait("/push/" + ownerPush, 1); await push.Wait("/push/" + memberPush, 1);
@@ -115,7 +115,7 @@ try
         await Test("An expired provider endpoint is removed on HTTP 410", async () =>
         {
             var expired = Guid.NewGuid();
-            await owner.Call("PUT", "/push/devices/" + expired, new { endpoint = push.Origin + "/gone/" + expired });
+            await owner.Call("PUT", "/push/devices/" + expired, push.Subscription(push.Origin + "/gone/" + expired));
             await owner.Call("POST", "/push/devices/" + expired + "/test", expected: 202);
             for (var i = 0; ; i++)
             {
@@ -225,8 +225,15 @@ try
         Assert((await member.Call("GET", listRoot + "/summary"))!["count"]!.GetValue<int>() == 3, "Two additions and one edit.");
         await member.Call("POST", listRoot + "/notify");
         Assert((await owner.Call("GET", listRoot + "/summary"))!["count"]!.GetValue<int>() == 0, "Sent changes no longer pending.");
+        var receivedNotices = (await owner.Call("GET", "/notifications/"))!.AsArray();
+        var summaryNotice = receivedNotices.First(x => x!["kind"]!.GetValue<string>() == "summary")!["text"]!.GetValue<string>();
+        Assert(summaryNotice.Contains("Owner") && summaryNotice.Contains("Member") && Regex.IsMatch(summaryNotice, @"\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}"), "Summary must retain original actors and action times.");
         await owner.Call("POST", listRoot + "/notify", expected: 400);
-        if (push != null) { await push.Wait("/push/" + ownerPush, 3); await push.Wait("/push/" + memberPush, 3); }
+        if (push != null)
+        {
+            await push.Wait("/push/" + ownerPush, 3); await push.Wait("/push/" + memberPush, 3);
+            Assert(push.Body("/push/" + ownerPush).Contains("Owner") && push.Body("/push/" + ownerPush).Contains("Member"), "Encrypted push must contain the actor details.");
+        }
     });
     await Test("Concurrent writes cannot silently overwrite each other", async () =>
     {
@@ -327,7 +334,7 @@ try
         await member.Call("POST", "/auth/login", new { email = memberEmail, password }, 401);
     });
     var anotherOwnerDevice = Guid.NewGuid();
-    if (push != null) await owner.Call("PUT", "/push/devices/" + anotherOwnerDevice, new { endpoint = push.Origin + "/push/" + anotherOwnerDevice });
+    if (push != null) await owner.Call("PUT", "/push/devices/" + anotherOwnerDevice, push.Subscription(push.Origin + "/push/" + anotherOwnerDevice));
     await Test("Logout invalidates the browser session", async () =>
     {
         if (push != null) owner.Http.DefaultRequestHeaders.Add("X-Push-Device", ownerPush.ToString());

@@ -11,6 +11,11 @@ export function pushKey(publicKey: string): ArrayBuffer {
   const raw = atob(text + "=".repeat((4 - text.length % 4) % 4));
   return Uint8Array.from(raw, c => c.charCodeAt(0)).buffer;
 }
+function subscriptionData(subscription: PushSubscription) {
+  const keys = subscription.toJSON().keys;
+  if (!keys?.p256dh || !keys.auth) throw new Error("Браузърът не предостави ключовете за известия.");
+  return { endpoint: subscription.endpoint, p256dh: keys.p256dh, auth: keys.auth };
+}
 export async function localPushCleanup(): Promise<void> {
   rememberPushOwner("");
   renewPushDeviceId();
@@ -38,11 +43,11 @@ export async function syncPush(userId: string): Promise<boolean> {
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) { rememberPushOwner(""); return false; }
-  await api("/push/devices/" + pushDeviceId(), "PUT", { endpoint: subscription.endpoint });
+  await api("/push/devices/" + pushDeviceId(), "PUT", subscriptionData(subscription));
   return true;
 }
 export async function enablePush(subscription: PushSubscription, userId: string): Promise<void> {
-  try { await api("/push/devices/" + pushDeviceId(), "PUT", { endpoint: subscription.endpoint }); }
+  try { await api("/push/devices/" + pushDeviceId(), "PUT", subscriptionData(subscription)); }
   catch (error) {
     if (error instanceof ApiError && error.status === 409) await localPushCleanup();
     throw error;

@@ -1,16 +1,19 @@
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
-$archivePath = Join-Path $repoRoot 'artifacts/ShoppingGroups-Push-Update.zip'
+$archivePath = Join-Path $repoRoot 'artifacts/ShoppingGroups-Push-Details-v2.zip'
 [IO.Directory]::CreateDirectory((Split-Path -Parent $archivePath)) | Out-Null
 $files = @(
     'compose.tests.yaml',
     'src/ShoppingGroups.Domain/WebPushProtocol.cs',
+    'src/ShoppingGroups.Domain/NotificationText.cs',
     'src/ShoppingGroups.Api/PushNotifications.cs',
     'src/ShoppingGroups.Api/Migrations/DevicePushNotifications.cs',
+    'src/ShoppingGroups.Api/Migrations/DetailedDevicePush.cs',
     'src/ShoppingGroups.Api/AppDb.cs',
     'src/ShoppingGroups.Api/Program.cs',
     'src/ShoppingGroups.Api/Workers.cs',
     'src/ShoppingGroups.Api/Collaboration.cs',
+    'src/ShoppingGroups.Api/ListEndpoints.cs',
     'src/ShoppingGroups.Api/AuthEndpoints.cs',
     'web/src/push-device.ts',
     'web/src/push.ts',

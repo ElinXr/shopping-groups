@@ -25,6 +25,8 @@ public class PushDevice
     public string SecurityStamp { get; set; } = "";
     public string Endpoint { get; set; } = "";
     public string EndpointHash { get; set; } = "";
+    public string P256dh { get; set; } = "";
+    public string Auth { get; set; } = "";
     public DateTime ExpiresAt { get; set; }
     public DateTime? LastAcceptedAt { get; set; }
     public string? LastError { get; set; }
@@ -90,7 +92,7 @@ public sealed class PushIdentity(IConfiguration config)
     }
 }
 
-public record PushSubscriptionInput(string Endpoint);
+public record PushSubscriptionInput(string Endpoint, string P256dh, string Auth);
 public static class PushEndpoints
 {
     public static void MapPush(this WebApplication app)
@@ -103,11 +105,11 @@ public static class PushEndpoints
             return Results.Ok(new { enabled = device != null && device.ExpiresAt > DateTime.UtcNow,
                 expiresAt = device?.ExpiresAt, lastAcceptedAt = device?.LastAcceptedAt, lastError = device?.LastError });
         });
-        endpoints.MapPut("/devices/{id:guid}", async (Guid id, PushSubscriptionInput input, HttpContext context, AppDb db, PushIdentity identity) =>
+        endpoints.MapPut("/devices/{id:guid}", async (Guid id, PushSubscriptionInput input, HttpContext context, AppDb db, PushIdentity identity, PushSignal signal) =>
         {
             if (!identity.Enabled) throw new RuleException(503, "push_disabled", "Известията за устройство са временно недостъпни.");
             var testOrigin = app.Environment.IsEnvironment("Testing") ? app.Configuration["Push:TestOrigin"] : null;
-            if (id == Guid.Empty || input.Endpoint == null || !WebPushProtocol.AllowedEndpoint(input.Endpoint, testOrigin))
+            if (id == Guid.Empty || input.Endpoint == null || !WebPushProtocol.AllowedEndpoint(input.Endpoint, testOrigin) || !WebPushProtocol.ValidSubscriptionKeys(input.P256dh, input.Auth))
                 throw new RuleException(400, "invalid_push", "Невалиден адрес за известия на устройството.");
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
             var user = await db.Users.SingleAsync(x => x.Id == userId);
@@ -124,13 +126,16 @@ public static class PushEndpoints
                 db.PushDevices.Add(device);
             }
             var authentication = await context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-            if (device.EndpointHash != hash) { device.LastAcceptedAt = null; device.LastError = null; }
+            if (device.EndpointHash != hash || device.P256dh != input.P256dh || device.Auth != input.Auth) { device.LastAcceptedAt = null; device.LastError = null; }
             device.UserId = userId;
             device.SecurityStamp = user.SecurityStamp ?? "";
             device.Endpoint = input.Endpoint;
             device.EndpointHash = hash;
+            device.P256dh = input.P256dh;
+            device.Auth = input.Auth;
             device.ExpiresAt = authentication.Properties?.ExpiresUtc?.UtcDateTime ?? DateTime.UtcNow.AddDays(14);
             await db.SaveChangesAsync();
+            signal.Notify();
             return Results.NoContent();
         });
         endpoints.MapDelete("/devices/{id:guid}", async (Guid id, ClaimsPrincipal principal, AppDb db) =>
@@ -214,7 +219,18 @@ public sealed class PushWorker(IServiceScopeFactory scopes, PushIdentity identit
         }
         try
         {
-            using var request = WebPushProtocol.Request(device.Endpoint, identity.Authorization(device.Endpoint));
+            if (!WebPushProtocol.ValidSubscriptionKeys(device.P256dh, device.Auth))
+            {
+                device.LastError = "SubscriptionNeedsRefresh";
+                Postpone(delivery);
+                await db.SaveChangesAsync(token);
+                return;
+            }
+            var at = delivery.Notification?.At ?? DateTime.UtcNow;
+            var body = delivery.Notification?.Text ?? $"Тестово известие · {NotificationText.Time(at)}";
+            var payload = NotificationText.Payload(body, at);
+            var encrypted = WebPushProtocol.Encrypt(payload, device.P256dh, device.Auth);
+            using var request = WebPushProtocol.Request(device.Endpoint, identity.Authorization(device.Endpoint), encrypted);
             using var response = await clients.CreateClient("PushTransport").SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
             if (response.StatusCode is HttpStatusCode.Gone or HttpStatusCode.NotFound)
                 db.PushDevices.Remove(device);

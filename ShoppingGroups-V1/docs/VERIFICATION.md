@@ -1,8 +1,20 @@
 # Verification record — updated 25 October 2026
 
-## Pending device push update — separate from the deployed baseline
+## Pending detailed push update v2 — latest local evidence
 
-Device push is now implemented locally; it has **not** been uploaded/deployed to the user's public app. Current local total is **89 passing tests** (62 domain/protocol, 24 frontend/worker/device, 3 server-environment). The production frontend build succeeds. New protocol tests validate P-256 key generation, independent ES256 signature verification, audience/expiry, empty payload headers and endpoint SSRF restrictions. New worker tests validate visible push display and same-origin inbox navigation. Device tests cover ID rotation and restricted browser storage.
+The user reports uploading the earlier push code and seeing no device-notification section in Profile. This establishes that their browser is not showing the updated interface; it does not distinguish an undeployed commit, a failed check, a nested upload path or a stale client cache. No live inspection was attempted after the prior browser-origin rejection.
+
+The current source adds encrypted device messages containing the original action author and time, independently from the user/time sending the summary. The latest action is first in the phone preview. Bulgarian display times use Europe/Sofia including daylight saving. A second additive migration stores browser P256dh/Auth keys; existing VAPID keys and inbox data are retained. `/health/live` now returns `release: push-details-v2` for the user to check after publishing.
+
+**98 local tests pass:** 69 domain/protocol, 26 frontend/service-worker/device and 3 environment checks. The production frontend build succeeds. New checks cover an exact RFC 8291 encryption vector, valid/invalid browser keys, fresh cryptographic randomness, payload/header limits, original author/time versus notifier, winter/summer time, Unicode truncation and detailed visible service-worker notices with safe fallbacks.
+
+The updated integration runner compiles with zero warnings/errors; its independent fake provider verifies VAPID and decrypts aes128gcm. Integration scenarios assert summary metadata and decrypted device content. These scenarios have **not run locally**. The actual API 10 restore/build remains blocked by NuGet DNS, and Docker has no running Linux engine. The ignored compatibility compiler still uses cached EF 8 and a deliberately nonfunctional Identity stub: its success catches C# errors only and is not API 10 or runtime evidence.
+
+New GitHub CI, Render deployment, real-provider acceptance and operating-system display remain unverified for this update. The passing baseline screenshot below predates both push updates. An update-only archive is prepared without extra workflow files; upload into the existing ShoppingGroups-V1 folder, wait for green CI and the same commit to be Live in Render, then enable and test push on each device. See [deployment and device checks](PUSH-NOTIFICATIONS.md).
+
+## Earlier push v1 local evidence — before detailed payloads
+
+The first push version was implemented locally and packaged for user upload; no live deployment was independently confirmed. Its local total was **89 passing tests** (62 domain/protocol, 24 frontend/worker/device, 3 server-environment). The production frontend build succeeds. New protocol tests validate P-256 key generation, independent ES256 signature verification, audience/expiry, empty payload headers and endpoint SSRF restrictions. New worker tests validate visible push display and same-origin inbox navigation. Device tests cover ID rotation and restricted browser storage.
 
 The updated integration runner compiles with zero errors/warnings. Its isolated HTTP listener verifies VAPID signatures against the configured public application key. New API scenarios cover authentication, private subscription ownership, endpoint validation, provider acceptance/410, actual shopping events, membership removal and per-device logout. Compose syntax parses. These scenarios are **written/compiled, not executed** locally: docker info still reports a missing dockerDesktopLinuxEngine pipe, and the real API build attempt fails NU1301 (api.nuget.org DNS). A repeated compatibility compilation under ignored .tools/compile succeeds with zero errors, but uses the existing nonfunctional Identity/EF 8 diagnostic setup and is not counted as an API 10 build.
 
@@ -30,7 +42,7 @@ The same screenshot contains a missing `libgssapi_krb5.so.2` message. [Npgsql's 
 
 ## Executed successfully
 
-The baseline had **72 local passing tests** on 24 October. The newer push update has 89, as recorded above. Both totals exclude every blocked integration scenario.
+The baseline had **72 local passing tests** on 24 October. The latest detailed push update has 98, as recorded above. Both totals exclude every blocked integration scenario.
 
 | Check | Actual result |
 | --- | --- |

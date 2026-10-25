@@ -48,7 +48,7 @@ Validation and domain errors use Problem Details with `status`, `title` and, whe
 | GET `/admin/emails` | Up to 100 pending outbox status records, no bodies |
 | POST `/admin/emails/{numericId}/retry` | Reset failure counter and retry time |
 
-`/health/live` and `/health/ready` are anonymous. `/hubs/events` is the authenticated SignalR endpoint; client subscribes to `Changed({groupId})`. Keep `credentials: same-origin` and use `ws`/`wss` according to the page scheme.
+`/health/live` and `/health/ready` are anonymous. The current liveness response includes `{status:"ok",release:"push-details-v2"}` to identify the deployed update. `/hubs/events` is the authenticated SignalR endpoint; client subscribes to `Changed({groupId})`. Keep `credentials: same-origin` and use `ws`/`wss` according to the page scheme.
 # Device push notifications
 
 These routes require authentication and the existing CSRF header for mutations.
@@ -57,8 +57,8 @@ These routes require authentication and the existing CSRF header for mutations.
 | --- | --- |
 | GET /push/config | enabled, publicKey; never returns a private VAPID key |
 | GET /push/devices/{id} | Own device state: enabled, expiresAt, lastAcceptedAt, lastError; other devices appear disabled |
-| PUT /push/devices/{id} | Body: endpoint. Register/refresh own device, bounded to the authenticated cookie expiry and security stamp |
+| PUT /push/devices/{id} | Body: {endpoint,p256dh,auth}. Register/refresh own device with validated P-256 browser encryption keys, bounded to the authenticated cookie expiry and security stamp |
 | DELETE /push/devices/{id} | Revoke own device and pending deliveries; 404 for another user's device |
 | POST /push/devices/{id}/test | Queue an own-device test push; 202 means queued, not delivered |
 
-POST /auth/logout accepts X-Push-Device (browser installation UUID) to revoke that device alongside the cookie session. The frontend then unsubscribes and rotates the local device identifier. All other devices remain enabled. Empty-body Web Push keeps shopping text out of provider requests and lock screens. See [setup, behavior and limits](PUSH-NOTIFICATIONS.md).
+POST /auth/logout accepts X-Push-Device (browser installation UUID) to revoke that device alongside the cookie session. The frontend then unsubscribes and rotates the local device identifier. All other devices remain enabled. RFC 8291 aes128gcm encrypts detailed content for the browser. Notification summaries retain the original activity author/time separately from the sender/time of the notification. Display times use Europe/Sofia. Device previews prioritize the latest action; long summaries are bounded while the full inbox text remains available. Device preview settings control visibility on the lock screen. See [setup, behavior and limits](PUSH-NOTIFICATIONS.md).

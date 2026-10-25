@@ -161,4 +161,62 @@ Test("Web Push request contains no shopping content and preserves VAPID and TTL"
     Equal("vapid t=signed-token, k=public-key", request.Headers.GetValues("Authorization").Single());
     Equal(false, request.Content.Headers.ContentEncoding.Any());
 });
+// RFC 8291 Appendix A test vector (https://www.rfc-editor.org/rfc/rfc8291).
+Test("Encrypted Web Push exactly matches the RFC 8291 interoperability vector", () => {
+    const string serverPublic = "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8";
+    const string receiverPublic = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4";
+    var q = WebPushProtocol.Decode(serverPublic);
+    using var sender = ECDiffieHellman.Create(new ECParameters { Curve = ECCurve.NamedCurves.nistP256,
+        Q = new ECPoint { X = q[1..33], Y = q[33..] }, D = WebPushProtocol.Decode("yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw") });
+    var encrypted = WebPushProtocol.Encrypt(
+        WebPushProtocol.Decode("V2hlbiBJIGdyb3cgdXAsIEkgd2FudCB0byBiZSBhIHdhdGVybWVsb24"),
+        receiverPublic, "BTBZMqHH6r4Tts7J_aSIgg", sender, WebPushProtocol.Decode("DGv6ra1nlYgDCS1FRnbzlw"));
+    Equal("8pfeW0KbunFT06SuDKoJH9Ql87S1QUrdirN6GcG7sFz1y1sqLgVi1VhjVkHsUoEsbI_0LpXMuGvnzQ", WebPushProtocol.Encode(encrypted[86..]));
+    Equal(serverPublic, WebPushProtocol.Encode(encrypted[21..86]));
+    Equal("DGv6ra1nlYgDCS1FRnbzlw", WebPushProtocol.Encode(encrypted[..16]));
+});
+Test("Payload encryption validates browser keys and uses fresh randomness", () => {
+    var pair = WebPushProtocol.GenerateKeys();
+    var auth = WebPushProtocol.Encode(RandomNumberGenerator.GetBytes(16));
+    Equal(true, WebPushProtocol.ValidSubscriptionKeys(pair.PublicKey, auth));
+    Equal(false, WebPushProtocol.ValidSubscriptionKeys(pair.PublicKey, "invalid"));
+    Equal(false, WebPushProtocol.ValidSubscriptionKeys("not-a-curve-point", auth));
+    var one = WebPushProtocol.Encrypt(Encoding.UTF8.GetBytes("Мария · Добавено: Мляко"), pair.PublicKey, auth);
+    var two = WebPushProtocol.Encrypt(Encoding.UTF8.GetBytes("Мария · Добавено: Мляко"), pair.PublicKey, auth);
+    Equal(false, one.SequenceEqual(two));
+});
+Test("Detailed push transport sends aes128gcm and remains inside provider payload limits", () => {
+    var pair = WebPushProtocol.GenerateKeys();
+    var payload = NotificationText.Payload(new string('я', 5000), DateTime.UtcNow);
+    var encrypted = WebPushProtocol.Encrypt(payload, pair.PublicKey, WebPushProtocol.Encode(RandomNumberGenerator.GetBytes(16)));
+    using var request = WebPushProtocol.Request("https://fcm.googleapis.com/push/test", "vapid test", encrypted);
+    Equal("aes128gcm", request.Content!.Headers.ContentEncoding.Single());
+    Equal(true, request.Content.Headers.ContentLength <= 4096);
+});
+Test("Notification summaries retain the original author and action time separately from the notifier", () => {
+    var added = new DateTime(2026, 10, 25, 12, 25, 0, DateTimeKind.Utc);
+    var summary = NotificationText.Summary([("item.added", "Добавено: Мляко", "Мария", added)]);
+    var notice = NotificationText.FromActor("Иван", summary, added.AddMinutes(10));
+    Equal(true, notice.Contains("Мария · 25.10.2026 14:25 — Добавено: Мляко"));
+    Equal(true, notice.StartsWith("От Иван · 25.10.2026 14:35"));
+});
+Test("Bulgarian notification times respect winter and summer time", () => {
+    Equal("15.01.2026 12:00", NotificationText.Time(new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc)));
+    Equal("15.07.2026 13:00", NotificationText.Time(new DateTime(2026, 7, 15, 10, 0, 0, DateTimeKind.Utc)));
+});
+Test("Long Unicode notification text is bounded without breaking JSON or emoji", () => {
+    var payload = NotificationText.Payload(string.Concat(Enumerable.Repeat("Мария 🛒 добави мляко в 14:25\n", 500)), DateTime.UtcNow);
+    Equal(true, payload.Length <= 3000);
+    using var json = JsonDocument.Parse(payload);
+    Equal(1, json.RootElement.GetProperty("version").GetInt32());
+    Equal(true, json.RootElement.GetProperty("body").GetString()!.Contains("Мария"));
+    Equal(false, Encoding.UTF8.GetString(payload).Contains('\uFFFD'));
+});
+Test("Phone previews prioritize the action author and original time over the later sender header", () => {
+    var added = new DateTime(2026, 10, 25, 12, 25, 0, DateTimeKind.Utc);
+    var summary = NotificationText.Summary([("item.added", "Добавено: Мляко", "Мария", added)]);
+    var text = NotificationText.FromActor("Иван", summary, added.AddMinutes(10));
+    using var payload = JsonDocument.Parse(NotificationText.Payload(text, added.AddMinutes(10)));
+    Equal(true, payload.RootElement.GetProperty("body").GetString()!.StartsWith("Мария · 25.10.2026 14:25 — Добавено: Мляко"));
+});
 Console.WriteLine($"{passed} domain tests passed.");
