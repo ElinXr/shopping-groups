@@ -48,7 +48,7 @@ Validation and domain errors use Problem Details with `status`, `title` and, whe
 | GET `/admin/emails` | Up to 100 pending outbox status records, no bodies |
 | POST `/admin/emails/{numericId}/retry` | Reset failure counter and retry time |
 
-`/health/live` and `/health/ready` are anonymous. The current liveness response includes `{status:"ok",release:"friendly-summary-v4"}` to identify the deployed update. `/hubs/events` is the authenticated SignalR endpoint; client subscribes to `Changed({groupId})`. Keep `credentials: same-origin` and use `ws`/`wss` according to the page scheme.
+`/health/live` and `/health/ready` are anonymous. The current liveness response includes `{status:"ok",release:"group-theme-v5"}` to identify the deployed update. `/hubs/events` is the authenticated SignalR endpoint; client subscribes to `Changed({groupId})`. Keep `credentials: same-origin` and use `ws`/`wss` according to the page scheme.
 # Device push notifications
 
 These routes require authentication and the existing CSRF header for mutations.
@@ -74,3 +74,9 @@ GET `/groups` also returns `memberCount` for the authenticated user's groups. No
 GET `/groups/{g}/lists/{l}/summary` returns up to 20 newest `entries`: `{id,kind,product,previousProduct,actorName,at}`, alongside total `count`, plain-text `summary` and `through`. Previous product is null except for parsed edit activity. Dates remain UTC; display formatting belongs to the client.
 
 POST `/groups/{g}/lists/{l}/notify?through={id}` sends only pending product changes through that cursor and advances LastSummaryActivityId to the last included event. Newer events remain pending. Missing through retains legacy behavior; nonpositive values return 400, and an already-consumed range returns the existing no_changes error. [Details](FRIENDLY-SUMMARY-V4.md).
+
+## Account appearance v5
+
+GET `/auth/me` additionally returns `theme: "light" | "dark"`. PUT `/auth/preferences` accepts `{theme,userId}` and returns `{theme}` after a successful own-account update. It requires authentication and the usual CSRF header. Invalid themes return 400 (code theme); a mismatched optional userId returns 409 (session_changed). It does not edit display name/email options or rotate the security stamp. Legacy `/auth/profile` calls leave appearance intact.
+
+Migration 20261026000100_UserAppearance adds AspNetUsers.Theme with a light default and database check constraint; the value is independent of session cookies and browser storage. [UI behavior and deployment](GROUPS-AND-THEMES-V5.md).

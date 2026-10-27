@@ -277,4 +277,10 @@ Test("Every product change has a structured preview and non-product activity is 
     catch (ArgumentException) { return; }
     throw new Exception("Non-product preview was accepted.");
 });
+Test("Appearance accepts only explicit persisted light and dark choices", () => {
+    Equal("light", Rules.Theme("light")); Equal("dark", Rules.Theme("dark"));
+});
+Test("Invalid appearance values are rejected instead of silently resetting a profile", () => {
+    foreach (var value in new string?[] { null, "", "system", "DARK", "<script>" }) Reject("theme", () => Rules.Theme(value));
+});
 Console.WriteLine($"{passed} domain tests passed.");

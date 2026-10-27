@@ -13,6 +13,7 @@ public record EmailInput(string Email);
 public record TokenInput(string Email, string Token);
 public record ResetInput(string Email, string Token, string Password);
 public record ProfileInput(string DisplayName, bool EmailNotifications);
+public record PreferencesInput(string Theme, string? UserId = null);
 
 public static class AuthEndpoints
 {
@@ -74,7 +75,7 @@ public static class AuthEndpoints
         app.MapGet("/api/auth/me", async (ClaimsPrincipal principal, UserManager<AppUser> users) =>
         {
             var user = (await users.GetUserAsync(principal))!;
-            return Results.Ok(new { user.Id, user.Email, user.DisplayName, user.EmailConfirmed, user.EmailNotifications, isAdmin = await users.IsInRoleAsync(user, "Admin") });
+            return Results.Ok(new { user.Id, user.Email, user.DisplayName, user.EmailConfirmed, user.EmailNotifications, user.Theme, isAdmin = await users.IsInRoleAsync(user, "Admin") });
         }).RequireAuthorization();
 
         app.MapPut("/api/auth/profile", async (ProfileInput input, ClaimsPrincipal principal, UserManager<AppUser> users) =>
@@ -84,6 +85,16 @@ public static class AuthEndpoints
             user.EmailNotifications = input.EmailNotifications;
             Check(await users.UpdateAsync(user));
             return Results.NoContent();
+        }).RequireAuthorization();
+
+        app.MapPut("/api/auth/preferences", async (PreferencesInput input, ClaimsPrincipal principal, UserManager<AppUser> users) =>
+        {
+            var user = (await users.GetUserAsync(principal))!;
+            if (input.UserId != null && input.UserId != user.Id)
+                throw new RuleException(409, "session_changed", "Сесията е променена. Влезте отново в профила си.");
+            user.Theme = Rules.Theme(input.Theme);
+            Check(await users.UpdateAsync(user));
+            return Results.Ok(new { user.Theme });
         }).RequireAuthorization();
 
         auth.MapPost("/confirm", async (TokenInput input, UserManager<AppUser> users) =>

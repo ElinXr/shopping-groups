@@ -18,6 +18,11 @@ export default defineConfig({
           .update(readFileSync(resolve(dist, "index.html")))
           .update(JSON.stringify(assets))
           .update(worker)
+          .update(readFileSync(resolve(import.meta.dirname, "public/theme-init.js")))
+          .update(readFileSync(resolve(import.meta.dirname, "public/icon.svg")))
+          .update(readFileSync(resolve(import.meta.dirname, "public/icon-192.png")))
+          .update(readFileSync(resolve(import.meta.dirname, "public/icon-512.png")))
+          .update(readFileSync(resolve(import.meta.dirname, "public/manifest.webmanifest")))
           .digest("hex")
           .slice(0, 16);
         writeFileSync(

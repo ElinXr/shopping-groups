@@ -12,17 +12,24 @@ export function GroupPicker({ groups, selectedId, disabled, onSelect, onCreate }
   const labelId = useId();
   const selected = groups.find(group => group.id === selectedId);
   const visible = searchGroups(groups, query);
+  const selectedMeta = selected?.disabled ? "Временно спряна" : selected
+    ? [selected.memberCount !== undefined ? `${selected.memberCount} ${selected.memberCount === 1 ? "участник" : "участници"}` : null,
+      selected.role === "owner" ? "собственик" : "участник"].filter(Boolean).join(" · ")
+    : "Създайте първата си група";
   function create() { setOpen(false); onCreate(); }
-  return <section className="group-switch group-picker" aria-labelledby={labelId}>
-    <span id={labelId} className="group-picker-label">ВАШИТЕ ГРУПИ</span>
+  return <section className="group-picker" aria-labelledby={labelId}>
+    <span id={labelId} className="group-picker-label">ТЕКУЩА ГРУПА</span>
+    <div className="group-picker-controls">
     <button type="button" className="group-picker-trigger" aria-haspopup="dialog" aria-expanded={open}
-      disabled={disabled || groups.length === 0} onClick={() => { setQuery(""); setOpen(true); }}>
-      <Users size={18} aria-hidden="true" />
+      aria-label={selected ? `Смени групата. Текуща група: ${selected.name}` : "Създай първата си група"}
+      disabled={disabled} onClick={() => { if (!groups.length) { create(); return; } setQuery(""); setOpen(true); }}>
+      <span className="group-picker-emblem" aria-hidden="true"><Users size={20} /></span>
       <span><strong title={selected?.name}>{selected?.name ?? "Все още нямате група"}</strong>
-        <small>{selected?.disabled ? "Временно спряна" : selected?.role === "owner" ? "Вие сте собственик" : selected ? "Споделени покупки" : "Създайте първата си група"}</small></span>
-      <ChevronDown size={16} aria-hidden="true" />
+        <small>{selectedMeta}</small></span>
+      <span className="group-picker-change">Смени</span><ChevronDown size={17} aria-hidden="true" />
     </button>
-    <button type="button" className="text-button" disabled={disabled} onClick={create}><Plus size={16} /> Нова група</button>
+    <button type="button" className="group-picker-add" disabled={disabled} onClick={create} aria-label="Създай нова група" title="Нова група"><Plus size={20} /></button>
+    </div>
     {open && <Modal title="Изберете своята група" close={() => setOpen(false)}>
       <p className="muted">Всяка група има собствени хора и списъци. Избраното място се запомня за вашия профил.</p>
       <label className="group-search"><Search size={18} aria-hidden="true" />

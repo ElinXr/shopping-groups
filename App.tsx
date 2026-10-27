@@ -20,6 +20,8 @@ import {
   Menu,
   X,
   Settings as SettingsIcon,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { api, ApiError, refreshCsrf } from "./api";
 import { realtime } from "./realtime";
@@ -34,6 +36,11 @@ import { ProductForm } from "./ProductForm";
 import { SummaryPreview } from "./SummaryPreview";
 import { summarySendPath } from "./summary-preview";
 import { GroupPicker } from "./GroupPicker";
+import { GroupContext } from "./GroupContext";
+import { Brand, LogoMark } from "./Brand";
+import { ThemeSettings } from "./ThemeSettings";
+import { useAppearance } from "./useAppearance";
+import { listCount, workspaceTitle } from "./workspace";
 import { chooseGroup, preferredGroup, rememberGroup } from "./group-selection";
 import { NotificationCenter } from "./NotificationCenter";
 import { persistProduct, productAmount, type ProductDraft } from "./products";
@@ -67,6 +74,7 @@ if (initialInvite || initialConfirm || initialReset) history.replaceState(null, 
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
+  const appearance = useAppearance(user, setUser);
   const [initializing, setInitializing] = useState(true);
   const [invite, setInvite] = useState(safeInvite(sessionStorage.getItem("shopping-invite")));
   const [reset, setReset] = useState(initialReset);
@@ -323,7 +331,7 @@ export function App() {
   if (initializing)
     return (
       <div className="boot">
-        <ShoppingBasket size={42} />
+        <LogoMark size={56} />
         <p>Подготвяме вашето място…</p>
       </div>
     );
@@ -373,12 +381,7 @@ export function App() {
   return (
     <div className="app-shell">
       <aside className={mobileMenu ? "sidebar open" : "sidebar"}>
-        <a href="/" className="brand">
-          <span className="brand-icon">
-            <ShoppingBasket size={24} />
-          </span>
-          Shopping Groups
-        </a>
+        <Brand />
         <button
           className="close-menu icon-button"
           aria-label="Затвори менюто"
@@ -386,8 +389,6 @@ export function App() {
         >
           <X />
         </button>
-        <GroupPicker groups={groups} selectedId={groupId} disabled={busy}
-          onSelect={switchGroup} onCreate={() => { setError(""); setMobileMenu(false); setDialog({ kind: "group" }); }} />
         <nav aria-label="Основна навигация">
           {nav.map((n) => (
             <button
@@ -437,11 +438,18 @@ export function App() {
           >
             <Menu />
           </button>
-          <div className="breadcrumb">
-            Вашето пространство<span>/</span>
-            <strong>{group?.name || "Shopping Groups"}</strong>
+          <Brand compact className="mobile-brand" />
+          <div className="topbar-group">
+            <GroupPicker groups={groups} selectedId={groupId} disabled={busy}
+              onSelect={switchGroup} onCreate={() => { setError(""); setMobileMenu(false); setDialog({ kind: "group" }); }} />
           </div>
           <div className="topbar-actions">
+            <button type="button" className="icon-button theme-toggle" disabled={busy || !online}
+              aria-label={appearance.theme === "dark" ? "Включи светла тема" : "Включи тъмна тема"}
+              title={appearance.theme === "dark" ? "Светла тема" : "Тъмна тема"}
+              onClick={() => { void run(() => appearance.saveTheme(appearance.theme === "dark" ? "light" : "dark"), false); }}>
+              {appearance.theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
             <span className={connected ? "connection" : "connection disconnected"}>
               <span />
               {!online ? "Офлайн" : connected ? "На живо" : "Свързване…"}
@@ -585,6 +593,8 @@ export function App() {
                   Запази
                 </button>
               </form>
+              <ThemeSettings theme={appearance.theme} disabled={busy || !online}
+                onChange={theme => { void run(() => appearance.saveTheme(theme), false); }} />
               <PushSettings userId={user.id} />
               <button
                 className="secondary"
@@ -718,6 +728,7 @@ export function App() {
                 <ArrowLeft size={17} />
                 Всички списъци
               </button>
+              <GroupContext compact name={group.name} label="Група на този списък" />
               <div className="page-heading list-heading">
                 <div>
                   <span className="eyebrow">
@@ -932,10 +943,10 @@ export function App() {
               <div className="page-heading">
                 <div>
                   <span className="eyebrow">
-                    ДОБРЕ ДОШЛИ, {user.displayName.toLocaleUpperCase("bg-BG")}
+                    ВАШИТЕ СПОДЕЛЕНИ ПОКУПКИ
                   </span>
-                  <h1>Какво ще купуваме?</h1>
-                  <p className="muted">Един списък по-малко в главата. Всичко нужно — тук.</p>
+                  <h1>{workspaceTitle(view)}</h1>
+                  <p className="muted">Тези списъци са за група <strong>{group.name}</strong>.</p>
                 </div>
                 <button
                   className="primary"
@@ -946,6 +957,7 @@ export function App() {
                   Нов списък
                 </button>
               </div>
+              <GroupContext name={group.name} members={group.members.length} label="Пазарувате заедно в" />
               <div className="section-toolbar">
                 <div className="tabs" aria-label="Филтри за списъците">
                   {[
@@ -963,7 +975,7 @@ export function App() {
                     </button>
                   ))}
                 </div>
-                <span className="muted list-count">{lists.length} списъка</span>
+                <span className="muted list-count">{listCount(lists.length)}</span>
               </div>
               {view === "trash" && (
                 <p className="hint">
@@ -1163,8 +1175,11 @@ export function App() {
                 });
               }}
             >
+              {dialog.kind === "list" && group && (
+                <GroupContext compact name={group.name} members={group.members.length} label="Новият списък ще бъде в група" />
+              )}
               <label>
-                Име
+                {dialog.kind === "list" ? "Име на списъка" : "Име"}
                 <input
                   autoFocus
                   name="name"
@@ -1184,7 +1199,7 @@ export function App() {
                 <p className="hint">Само поканените участници ще имат достъп до групата.</p>
               )}
               <button className="primary wide" disabled={busy || !online}>
-                Запази
+                {dialog.kind === "list" ? "Създай списъка" : dialog.kind === "group" ? "Създай групата" : "Запази"}
               </button>
             </form>
           )}

@@ -117,7 +117,7 @@ if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = c =>
 {
-    if (c.File.Name is "sw.js" or "index.html" or "manifest.webmanifest") c.Context.Response.Headers.CacheControl = "no-cache";
+    if (c.File.Name is "sw.js" or "index.html" or "manifest.webmanifest" or "theme-init.js") c.Context.Response.Headers.CacheControl = "no-cache";
 } });
 app.UseRouting();
 app.UseAuthentication();
@@ -132,7 +132,7 @@ app.Use(async (context, next) =>
     }
     await next(context);
 });
-app.MapGet("/health/live", () => Results.Ok(new { status = "ok", release = "friendly-summary-v4" }));
+app.MapGet("/health/live", () => Results.Ok(new { status = "ok", release = "group-theme-v5" }));
 app.MapGet("/health/ready", async (AppDb db) => await db.Database.CanConnectAsync() ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
 app.MapAuth();
 app.MapPush();

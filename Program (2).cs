@@ -351,6 +351,7 @@ try
         });
     }
     await ProductExperienceTests.Run(baseUrl, Test);
+    await AppearanceTests.Run(baseUrl, Test);
     Console.WriteLine($"{passed} PostgreSQL/HTTP/SignalR integration tests passed.");
     return 0;
 }

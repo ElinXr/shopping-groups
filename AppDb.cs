@@ -25,6 +25,7 @@ public class AppDb(DbContextOptions<AppDb> options) : IdentityDbContext<AppUser>
     {
         base.OnModelCreating(b);
         b.Entity<AppUser>().Property(x => x.DisplayName).HasMaxLength(80);
+        b.Entity<AppUser>().Property(x => x.Theme).HasMaxLength(10);
         b.Entity<Group>().Property(x => x.Name).HasMaxLength(100);
         b.Entity<Group>().Property(x => x.Version).IsConcurrencyToken();
         b.Entity<Member>().HasKey(x => new { x.GroupId, x.UserId });

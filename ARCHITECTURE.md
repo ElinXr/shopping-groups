@@ -57,3 +57,11 @@ The client composes GroupPicker, ProductForm and NotificationCenter. group-selec
 ## Structured share preview v4
 
 SummaryPreview renders the share dialog from typed summary entries rather than an activity-log string. NotificationText.PreviewChange is reused by plain-text summary generation so both formats retain the same original actor/time and edit details. summary-preview.ts isolates quantity display, Bulgarian count/date formatting and the send cursor. Optional POST through filtering binds the sent summary to the preview; LastSummaryActivityId and the notification outbox are committed in the existing group-concurrency transaction. v4 adds no migration or dependency.
+
+## Workspace and account appearance v5
+
+GroupPicker is a primary global-header control on desktop/mobile; GroupContext identifies the destination separately in list views and creation. Brand/LogoMark use one existing vector mark across auth, navigation and loading, while PWA/push retain the matching PNG exports. Appearance roles are centralized in theme.css; the existing layout stylesheet references semantic tokens for text, surfaces, controls, warnings and focus.
+
+AppUser.Theme is a durable profile field (light/dark), independent from session cookies. Auth preferences updates only that value, validates the expected account and leaves the security stamp unchanged. useAppearance applies server values before React paint and refreshes the current account's theme on focus. Revision checks discard stale focus results during saves, and the refresh patches only appearance so it cannot overwrite unrelated profile fields. Local persistent hints are validated and keyed per user; last-theme bootstrap is a non-sensitive unauthenticated paint hint. Storage failures fall back safely, and server preferences remain authoritative.
+
+The external theme-init.js respects script-src self and is part of the offline public shell. The shell version hashes appearance/brand assets so their updates rotate cached resources. Static app-shell resources retain appropriate refresh headers; private API responses remain uncached. Mobile auth control text is >=16px; manual browser zoom is never disabled.

@@ -7,6 +7,7 @@ public class AppUser : IdentityUser
     public string DisplayName { get; set; } = "";
     public bool Disabled { get; set; }
     public bool EmailNotifications { get; set; } = true;
+    public string Theme { get; set; } = "light";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

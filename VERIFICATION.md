@@ -1,4 +1,17 @@
-# Verification record — updated 25 October 2026
+# Verification record — updated 26 October 2026
+
+## Groups and durable appearance v5 — latest local evidence
+
+The user requested explicit group context in My Lists, a prominent nicer group switcher, light/dark preferences that outlive sessions, one consistent logo and relief from mobile login focus zoom. Group selection now sits in the global header. A reusable GroupContext identifies the group in the list workspace, list detail and create-list dialog. Brand/LogoMark share the existing icon.svg, matching the existing PNG exports used by PWA/push. Small-screen auth inputs are at least 16px and manual zoom remains enabled.
+
+Appearance is persisted on AppUser.Theme through migration 20261026000100_UserAppearance. Auth me includes theme; authenticated CSRF-protected PUT auth/preferences validates light/dark and the expected account. It does not change security stamps or overwrite name/email settings. Per-account persistent browser hints improve initial rendering, while the database remains authoritative after authentication/focus. A semantic palette covers both themes, including controls, forms, errors, modals, navigation and notifications.
+
+**156 local tests pass:** 82 domain/protocol, 71 frontend/client/worker/appearance/React-markup and 3 environment. The frontend production build succeeds. New cases verify preference validation/isolation, blocked storage, early bootstrap, semantic palette completeness, contrast >=4.5 for the tested text-role/surface pairs, focus contrast, common brand markup, full group context and native zoom availability. One initial light-palette contrast failure (muted text on auth surface 4.43) was corrected rather than weakening the check.
+
+The integration runner compiles with zero warnings/errors and adds five independent HTTP/PostgreSQL cases for initial appearance, durable updates, new cookie-session/device login, profile preservation and wrong-account/anonymous/invalid requests. These have not executed locally. The full API 10 build again fails NU1301 (api.nuget.org DNS), and Docker reports a missing dockerDesktopLinuxEngine pipe. CompileOnly succeeds with cached EF 8/Identity diagnostic stubs and remains separate from production verification.
+
+React markup tests run without a browser or network. No denied browser route was retried; no browser/device visual success or v5 upload/deployment is claimed. The cumulative archive includes earlier updates and requires the existing GitHub API/Docker checks before Render publishing. [Behavior and rollout checks](GROUPS-AND-THEMES-V5.md).
+
 
 ## Friendly summary v4 — latest local evidence
 
